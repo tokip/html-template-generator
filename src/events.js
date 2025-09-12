@@ -7,6 +7,7 @@ import { renderQuickMenu, adjustQuickMenuPosition, toggleQuickMenu, setupQuickMe
 import { setupMaximizeMode } from './ui/maximize.js';
 import { setupCustomTagTemplates, setupAutoTagSettings } from './ui/modal.js'; 
 import { getEditorInstance, getResultEditorInstance } from './ui/editor.js';
+import { markCodeBlocks } from './ui/editor.js';
 
 export async function setupEventListeners(CACHED_ELEMENTS) {
     const FIXED_RIGHT_BUTTONS = [CACHED_ELEMENTS.themeToggleBtn, CACHED_ELEMENTS.scrollTopBtn];
@@ -388,6 +389,11 @@ function renderCbPanel2() {
         theme: currentTheme === 'dark' ? 'material-darker' : 'default',
     });
 
+    // [추가] 에디터 내용이 변경될 때마다 코드 블록 주석을 숨깁니다.
+    cbModalState.blockEditor.on('change', () => {
+        markCodeBlocks(cbModalState.blockEditor);
+    });
+
     // [수정] 에디터가 표시된 후 높이를 재계산하여 이전 단계의 높이가 유지되는 문제를 해결합니다.
     setTimeout(() => {
         cbModalState.blockEditor.refresh();
@@ -404,18 +410,78 @@ function renderCbPanel2() {
 }
 
 function renderCbPanel3() {
-    const wrapper = document.getElementById('cb-template-preview-wrapper');
-    wrapper.innerHTML = '';
-    cbModalState.templatePreviewEditor = window.CodeMirror(wrapper, {
+    const panel = document.getElementById('cb-panel-3');
+    // [수정] 패널 내용을 초기화하고 새로운 구조를 추가합니다.
+    panel.innerHTML = `
+        <h5>3. 템플릿에 삽입</h5>
+        <p class="hint">블록을 삽입할 위치에 커서를 놓으세요.</p>
+        <div id="cb-template-preview-wrapper"></div>
+        <div class="flex" style="margin-top: 8px; justify-content: space-between;">
+            <button id="cb-add-newline-btn" class="secondary">줄 바꿈 추가</button>
+            <button id="cb-insert-here-btn" data-icon="add"><span>삽입</span></button>
+        </div>
+    `;
+
+    const editorWrapper = panel.querySelector('#cb-template-preview-wrapper');
+    cbModalState.templatePreviewEditor = window.CodeMirror(editorWrapper, {
         value: getEditorInstance().getValue(),
+        // [수정] 커서 이동은 허용하되, 키보드 직접 입력은 막기 위해 readOnly를 'nocursor'가 아닌 true로 설정하고,
+        // 키 입력을 막는 이벤트 핸들러를 추가합니다. CodeMirror는 readOnly: true여도 커서 이동은 기본적으로 허용합니다.
         mode: 'xml', lineNumbers: true, lineWrapping: true, readOnly: true,
         theme: currentTheme === 'dark' ? 'material-darker' : 'default',
+    });
+
+    // [추가] 에디터 내용이 변경될 때마다 코드 블록 주석을 숨깁니다.
+    cbModalState.templatePreviewEditor.on('change', () => {
+        markCodeBlocks(cbModalState.templatePreviewEditor);
+    });
+
+    // [추가] 사용자가 키보드로 직접 편집하는 것을 막습니다. (붙여넣기, 잘라내기 등 포함)
+    cbModalState.templatePreviewEditor.on('beforeChange', (instance, change) => {
+        // [수정] 사용자의 직접적인 입력(+input, +delete, paste, cut)만 막습니다.
+        // '줄 바꿈 추가' 버튼에서 사용하는 `replaceRange` API 호출은 `origin`이 `*compose` 또는 `+input`이 아니므로 허용됩니다.
+        const isUserInput = ['+input', '+delete', 'paste', 'cut'].includes(change.origin);
+        if (isUserInput) {
+            change.cancel();
+        }
     });
 
     // [수정] 에디터가 표시된 후 높이를 재계산합니다.
     setTimeout(() => {
         cbModalState.templatePreviewEditor.refresh();
+        markCodeBlocks(cbModalState.templatePreviewEditor); // [추가] 에디터가 렌더링된 후 즉시 주석을 숨깁니다.
     }, 0);
+
+    // [추가] '줄 바꿈 추가' 버튼 이벤트 리스너
+    panel.querySelector('#cb-add-newline-btn').addEventListener('click', () => {
+        const editor = cbModalState.templatePreviewEditor;
+        if (editor) {
+            const cursor = editor.getCursor();
+            // [수정] readOnly 상태에서도 프로그래밍 방식의 변경은 가능하므로, 에디터를 잠시 풀 필요가 없습니다.
+            editor.replaceRange('\n', cursor);
+            editor.focus();
+        }
+    });
+
+    // [추가] '여기에 삽입' 버튼 아이콘 로드
+    const insertBtn = panel.querySelector('#cb-insert-here-btn');
+    if (insertBtn) {
+        loadIcon(insertBtn.dataset.icon, { target: insertBtn });
+    }
+
+    // [추가] '여기에 삽입' 버튼 이벤트 리스너를 다시 연결합니다.
+    panel.querySelector('#cb-insert-here-btn').addEventListener('click', () => {
+        if (!cbModalState.selectedBlockId) {
+            showToast('삽입할 블록이 선택되지 않았습니다.', 'error');
+            return;
+        }
+        const mainEditor = getEditorInstance();
+        const previewCursor = cbModalState.templatePreviewEditor.getCursor();
+        mainEditor.setCursor(previewCursor); // 메인 에디터 커서 위치 동기화
+        insertCodeBlock(cbModalState.selectedBlockId);
+        document.getElementById('codeBlockModal').classList.remove('is-visible');
+        showToast('코드 블록이 삽입되었습니다.', 'info');
+    });
 }
 
 

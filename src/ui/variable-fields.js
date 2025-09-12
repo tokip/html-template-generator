@@ -246,15 +246,15 @@ function renderVariableFields(variables) {
         const colors = ['#e11d48', '#db2777', '#9333ea', '#6d28d9', '#4f46e5', '#2563eb', '#0284c7', '#0d9488', '#15803d', '#65a30d', '#ca8a04', '#d97706', '#ea580c'];
         let colorIndex = 0;
         duplicateDisplayNames.forEach(displayName => {
-            // [수정] 중복된 이름을 가진 변수 그룹을 찾습니다.
-            const duplicates = variables.filter(fullName => getDisplayVariableName(fullName, blockVarNames) === displayName);
-            // [수정] templateOrder를 기준으로 가장 마지막에 추가된 변수를 찾습니다.
-            const lastAdded = duplicates.reduce((last, current) => 
-                (templateOrder.indexOf(current) > templateOrder.indexOf(last)) ? current : last
-            );
-            // [수정] 마지막 변수에만 색상을 할당합니다.
-            duplicateColorMap[lastAdded] = colors[colorIndex % colors.length];
-            colorIndex++;
+            // [수정] 중복된 이름을 가진 변수 그룹을 templateOrder 순서대로 정렬합니다.
+            const duplicates = variables
+                .filter(fullName => getDisplayVariableName(fullName, blockVarNames) === displayName)
+                .sort((a, b) => templateOrder.indexOf(a) - templateOrder.indexOf(b));
+            // [수정] 첫 번째(원본)를 제외한 나머지 중복 변수들에 각각 다른 색상을 할당합니다.
+            duplicates.slice(1).forEach(fullName => {
+                duplicateColorMap[fullName] = colors[colorIndex % colors.length];
+                colorIndex++; // 각 변수마다 다른 색상을 위해 인덱스를 증가시킵니다.
+            });
         });
     }
 
@@ -618,10 +618,9 @@ function createModeSelector(name, cfg) {
     sel.id = selectId;
     sel.innerHTML = `<option value="text">텍스트 입력</option><option value="dropdown">드롭다운</option>`;
     sel.value = cfg.mode;
-    return sel;
 
-    wrapper.append(label, sel);
-    return wrapper;
+    wrapper.append(label, sel); // wrapper는 레이블과 셀렉트를 감싸는 역할만 합니다.
+    return sel; // 셀렉트 요소만 반환합니다.
 }
 
 function createTextInput(name, cfg) {
@@ -693,8 +692,8 @@ function createTextInput(name, cfg) {
         wrapTextWithTag(input, tag, attribute);
         autoResizeTextarea(input);
     });
-    wrap.append(input, toolbar);
-    wrap.append(label, input, toolbar);
+    // [수정] 접근성 레이블이 textarea 위에 공간을 차지하지 않도록 input과 toolbar 뒤에 추가합니다.
+    wrap.append(input, toolbar, label);
     return wrap;
 }
 

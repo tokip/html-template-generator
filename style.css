@@ -1754,6 +1754,19 @@
             margin-top: 8px;
         }
 
+        /* --- [추가] 접근성을 위한 시각적 숨김 클래스 --- */
+        .visually-hidden {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            margin: -1px;
+            padding: 0;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            border: 0;
+            white-space: nowrap;
+        }
+
 
 
         /* [추가] 커스텀 태그 템플릿 컨트롤 정렬 */
