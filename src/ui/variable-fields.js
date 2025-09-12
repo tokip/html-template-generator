@@ -1,4 +1,4 @@
-import { variableConfigs, codeBlocks, syncGroups, syncColorMap, currentFilter, currentSort, setCurrentFilter, setCurrentSort, saveState, saveUiState, restoreUiState } from '../state.js';
+import { variableConfigs, codeBlocks, syncGroups, syncColorMap, currentFilter, currentSort, templateOrder, setCurrentFilter, setCurrentSort, saveState, saveUiState, restoreUiState } from '../state.js';
 import { sanitizeId, escapeHTML, getDisplayVariableName } from '../utils.js';
 import { getEditorInstance } from './editor.js';
 import { triggerResultGeneration, processTemplateAndExtractVariables } from '../core.js';
@@ -246,17 +246,19 @@ function renderVariableFields(variables) {
         const colors = ['#e11d48', '#db2777', '#9333ea', '#6d28d9', '#4f46e5', '#2563eb', '#0284c7', '#0d9488', '#15803d', '#65a30d', '#ca8a04', '#d97706', '#ea580c'];
         let colorIndex = 0;
         duplicateDisplayNames.forEach(displayName => {
-            variables.forEach(fullName => {
-                if (getDisplayVariableName(fullName, blockVarNames) === displayName) {
-                    duplicateColorMap[fullName] = colors[colorIndex % colors.length];
-                }
-            });
+            // [수정] 중복된 이름을 가진 변수 그룹을 찾습니다.
+            const duplicates = variables.filter(fullName => getDisplayVariableName(fullName, blockVarNames) === displayName);
+            // [수정] templateOrder를 기준으로 가장 마지막에 추가된 변수를 찾습니다.
+            const lastAdded = duplicates.reduce((last, current) => 
+                (templateOrder.indexOf(current) > templateOrder.indexOf(last)) ? current : last
+            );
+            // [수정] 마지막 변수에만 색상을 할당합니다.
+            duplicateColorMap[lastAdded] = colors[colorIndex % colors.length];
             colorIndex++;
         });
     }
 
-    // [수정] core.js에서 변수 목록이 정리되었으므로, 이제 간단히 분류할 수 있습니다.
-    // [수정] 이름 대신, blockVariables Map을 기준으로 일반 변수를 명확히 필터링합니다.
+    // [수정] core.js에서 변수 목록이 정리되었으므로, 이름으로 간단히 분류합니다.
     const regularVariables = variables.filter(name => !blockVarNames.has(name));
 
     const renderVariables = (vars, parent) => {
@@ -339,7 +341,14 @@ function renderVariableFields(variables) {
         variables.forEach(name => {
             const link = document.createElement('a');
             link.href = `#var-field-${sanitizeId(name)}`;
-            link.textContent = getDisplayVariableName(name, blockVarNames); // [수정] 짧은 이름 표시
+            link.textContent = getDisplayVariableName(name, blockVarNames); // blockVarNames를 전달해야 합니다.
+
+            // [추가] 목차의 링크에도 중복 변수 색상 하이라이트를 적용합니다.
+            const duplicateColor = duplicateColorMap[name];
+            if (duplicateColor) {
+                link.classList.add('duplicate-variable-highlight');
+                link.style.setProperty('--duplicate-color', duplicateColor);
+            }
             toc.appendChild(link);
         });
 
@@ -430,8 +439,9 @@ function renderVariableFields(variables) {
                 <span>코드 블록: ${escapeHTML(blockName)}</span>
             </div>
         `;
-        // [수정] core.js에서 변수 목록이 정리되었으므로, 전달받은 varSet을 바로 사용합니다.
-        const sortedVars = Array.from(varSet).filter(v => variables.includes(v)).sort((a, b) => a.localeCompare(b, 'ko', { numeric: true }));
+        // [수정] 템플릿에 정의된 순서(templateOrder)를 기준으로 변수를 정렬합니다.
+        const varsForBlock = Array.from(varSet).filter(v => variables.includes(v));
+        const sortedVars = varsForBlock.sort((a, b) => templateOrder.indexOf(a) - templateOrder.indexOf(b));
         
         // 그룹 내 변수들을 렌더링하여 그룹에 추가
         const varContainer = document.createElement('div');
@@ -472,7 +482,7 @@ function createVariableField(name, cfg, duplicateColor) {
     }
 
     const label = document.createElement('summary');
-    label.textContent = getDisplayVariableName(name, blockVarNames); // [수정] 짧은 이름 표시
+    label.textContent = getDisplayVariableName(name, blockVarNames);
     const modeTag = document.createElement('span');
     modeTag.style.cssText = 'font-size: 11px; font-weight: normal; padding: 2px 6px; border-radius: 4px; margin-left: 8px; vertical-align: middle;';
 

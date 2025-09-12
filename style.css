@@ -1202,6 +1202,16 @@
             /* 점 크기가 줄어들지 않도록 고정 */
         }
 
+        /* [추가] 퀵 메뉴 코드 블록 그룹 헤더 스타일 */
+        .quick-menu-group-header {
+            grid-column: 1 / -1; /* 그리드의 모든 열을 차지 */
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--hint-color);
+            margin-top: 10px;
+            margin-bottom: 4px;
+        }
+
         .quick-menu-item .input-control {
             flex-grow: 1;
             grid-column: 2; /* [추가] 간략히 보기 모드에서도 Grid의 두 번째 열을 차지하도록 설정 */

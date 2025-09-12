@@ -23,7 +23,7 @@ export async function setupEventListeners(CACHED_ELEMENTS) {
     if (warningIconContainer) await loadIcon('alert-triangle', { target: warningIconContainer });
 
     document.getElementById('extractBtn').addEventListener('click', () => {
-        processTemplateAndExtractVariables();
+        processTemplateAndExtractVariables(); // [수정] '변수 추출' 시에도 유효성 검사를 실행합니다.
         // [추가] 변수 추출 후, 현재 템플릿을 "저장된 상태"로 간주하고 버튼을 숨깁니다.
         window.lastSavedTemplate = getEditorInstance().getValue();
         updateExtractBtnVisibility();
@@ -470,7 +470,7 @@ function insertCodeBlock(blockId) {
     editor.focus();
 
     // 이벤트 강제 발생 (CodeMirror의 'change' 이벤트가 자동으로 발생합니다)
-    processTemplateAndExtractVariables();
+    processTemplateAndExtractVariables(true); // [수정] 코드 블록 삽입임을 명시적으로 알립니다.
     saveState();
 }
 

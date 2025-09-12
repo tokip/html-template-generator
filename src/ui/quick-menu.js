@@ -95,8 +95,7 @@ export function renderQuickMenu() {
         }
     }
 
-    // [수정] core.js에서 변수 목록이 정리되었으므로, 이제 간단히 분류할 수 있습니다.
-    // [수정] 이름 대신, blockVarInstances Set을 기준으로 일반 변수를 명확히 필터링합니다.
+    // [수정] core.js에서 변수 목록이 정리되었으므로, 분류 로직을 단순화합니다.
     const regularVars = templateOrder.filter(name => variableConfigs[name] && !blockVarInstances.has(name));
     const blockVars = templateOrder.filter(name => variableConfigs[name] && blockVarInstances.has(name));
     // [수정] 중복 색상 계산을 위해 정렬되지 않은 원본 순서를 사용합니다.
@@ -107,7 +106,7 @@ export function renderQuickMenu() {
     const displayNameCounts = {};
     // allVisibleVars는 정렬되지 않은 상태여야 중복 색상 할당이 일관됩니다.
     allVisibleVars.forEach(name => {
-        const displayName = getDisplayVariableName(name);
+        const displayName = getDisplayVariableName(name, blockVarInstances);
         displayNameCounts[displayName] = (displayNameCounts[displayName] || 0) + 1;
     });
 
@@ -116,11 +115,14 @@ export function renderQuickMenu() {
         const colors = ['#e11d48', '#db2777', '#9333ea', '#6d28d9', '#4f46e5', '#2563eb', '#0284c7', '#0d9488', '#15803d', '#65a30d', '#ca8a04', '#d97706', '#ea580c'];
         let colorIndex = 0;
         duplicateDisplayNames.forEach(displayName => {
-            allVisibleVars.forEach(fullName => {
-                if (getDisplayVariableName(fullName) === displayName) {
-                    duplicateColorMap[fullName] = colors[colorIndex % colors.length];
-                }
-            });
+            // [수정] 중복된 이름을 가진 변수 그룹을 찾습니다.
+            const duplicates = allVisibleVars.filter(fullName => getDisplayVariableName(fullName, blockVarInstances) === displayName);
+            // [수정] templateOrder를 기준으로 가장 마지막에 추가된 변수를 찾습니다.
+            const lastAdded = duplicates.reduce((last, current) =>
+                (templateOrder.indexOf(current) > templateOrder.indexOf(last)) ? current : last
+            );
+            // [수정] 마지막 변수에만 색상을 할당합니다.
+            duplicateColorMap[lastAdded] = colors[colorIndex % colors.length];
             colorIndex++;
         });
     }
@@ -167,7 +169,7 @@ export function renderQuickMenu() {
         item.className = 'quick-menu-item';
 
         const label = document.createElement('label');
-        label.textContent = getDisplayVariableName(name); // [수정] 짧은 이름 표시
+        label.textContent = getDisplayVariableName(name, blockVarInstances);
         label.title = name;
         // [추가] 접근성을 위해 label과 input/select를 연결합니다.
         const inputId = `quick-menu-input-${sanitizeId(name)}`;
@@ -280,8 +282,28 @@ export function renderQuickMenu() {
         divider.className = 'quick-menu-divider';
         contentContainer.appendChild(divider);
     }
-    // [수정] 화면에 표시할 때만 정렬합니다.
-    blockVars.sort((a, b) => a.localeCompare(b, 'ko', { numeric: true })).forEach(name => createPlaceholder(name));
+
+    // [수정] 코드 블록 변수를 그룹별로 렌더링합니다.
+    const groupedBlockVars = new Map();
+    blockVars.forEach(name => {
+        const blockId = name.split('_instance_')[0];
+        if (!groupedBlockVars.has(blockId)) {
+            groupedBlockVars.set(blockId, []);
+        }
+        groupedBlockVars.get(blockId).push(name);
+    });
+
+    groupedBlockVars.forEach((vars, blockId) => {
+        const blockName = codeBlocks[blockId]?.name || blockId;
+        const groupHeader = document.createElement('div');
+        groupHeader.className = 'quick-menu-group-header';
+        groupHeader.textContent = `코드 블록: ${escapeHTML(blockName)}`;
+        contentContainer.appendChild(groupHeader);
+
+        // templateOrder 순서대로 정렬하여 렌더링
+        vars.sort((a, b) => templateOrder.indexOf(a) - templateOrder.indexOf(b))
+            .forEach(name => createPlaceholder(name));
+    });
 
     // 바로가기 링크 이벤트 위임
     contentContainer.addEventListener('click', (e) => {

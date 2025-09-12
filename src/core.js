@@ -3,7 +3,7 @@ import { applyFilterAndSort } from './ui/variable-fields.js';
 import { doBeautify, escapeRegExp, showToast, escapeHTML } from './utils.js';
 import { getEditorInstance, getResultEditorInstance } from './ui/editor.js';
 
-export function processTemplateAndExtractVariables() {
+export function processTemplateAndExtractVariables(isBlockInsertion = false) {
     const oldVarCount = Object.keys(variableConfigs).length;
 
     let tpl = getEditorInstance()?.getValue() || '';
@@ -12,7 +12,32 @@ export function processTemplateAndExtractVariables() {
     let m;
 
     // 1. 기본 템플릿에서 변수 추출
-    while ((m = re.exec(tpl)) !== null) { newVars.add(m[1]); }
+    // [수정] 중복 변수 이름 자동 변경 로직 추가
+    const editor = getEditorInstance();
+    while ((m = re.exec(tpl)) !== null) {
+        let varName = m[1];
+        if (newVars.has(varName)) { // 중복 발견
+            let counter = 2;
+            let newVarName;
+            do {
+                newVarName = `${varName}${counter}`;
+                counter++;
+            } while (newVars.has(newVarName));
+
+            // 에디터의 내용을 새로운 변수 이름으로 교체
+            const originalMatch = m[0];
+            const newMatch = `{{${newVarName}}}`;
+            tpl = tpl.replace(originalMatch, newMatch);
+            
+            // 정규식의 마지막 인덱스를 재설정하여 교체된 템플릿을 다시 검사하도록 함
+            re.lastIndex = 0; 
+            newVars.clear(); // Set을 비우고 처음부터 다시 시작
+            showToast(`중복된 변수 '${varName}'이(가) '${newVarName}'(으)로 자동 변경되었습니다.`, 'info');
+        } else {
+            newVars.add(varName);
+        }
+    }
+    if (editor.getValue() !== tpl) editor.setValue(tpl); // 변경된 내용이 있으면 에디터에 반영
 
     // 2. 코드 블록 자체의 템플릿에서 변수 추출 (UI 렌더링 목적)
     Object.values(codeBlocks).forEach(block => {
@@ -22,7 +47,7 @@ export function processTemplateAndExtractVariables() {
         }
     });
 
-    // [수정] 코드 블록 템플릿에만 존재하는 변수는 최종 변수 목록에서 제외합니다.
+    // [수정] 변수 분류 로직을 재구성하여 중복 문제를 근본적으로 해결합니다.
     const allBlockTemplateVars = new Set();
     Object.values(codeBlocks).forEach(block => {
         re.lastIndex = 0;
@@ -31,14 +56,30 @@ export function processTemplateAndExtractVariables() {
         }
     });
 
-    // [추가] 일반 템플릿에만 있는 변수도 추출합니다.
-    const mainTemplateOnlyVars = new Set();
+    const mainTemplateVars = new Set();
     re.lastIndex = 0;
     while ((m = re.exec(tpl)) !== null) {
-        mainTemplateOnlyVars.add(m[1]);
+        mainTemplateVars.add(m[1]);
     }
 
-    const finalVariables = Array.from(newVars).filter(v => !allBlockTemplateVars.has(v) || mainTemplateOnlyVars.has(v) || v.includes('_instance_'));
+    // [수정] 변수 필터링 로직을 재구성하여 모든 문제를 해결합니다.
+    let finalVariables = Array.from(newVars);
+    
+    // 1. 가짜 인스턴스 변수 제거
+    finalVariables = finalVariables.filter(v => {
+        if (v.startsWith('block_') && v.includes('_instance_')) {
+            const blockId = v.split('_instance_')[0];
+            if (!codeBlocks[blockId]) { // 출처가 없는 코드 블록 변수라면
+                showToast(`'${v}'와 같은 형식의 이름은 시스템 예약어이므로 사용할 수 없습니다.`, 'error', 5000);
+                editor.setValue(editor.getValue().replace(`{{${v}}}`, `{{INVALID_VAR_${v}}}`));
+                return false; // 최종 변수 목록에서 제외
+            }
+        }
+        return true; // 유효한 변수는 유지
+    });
+
+    // 2. 코드 블록 템플릿에만 존재하는 변수 제거 (메인 템플릿에 사용되지 않는 경우)
+    finalVariables = finalVariables.filter(v => !allBlockTemplateVars.has(v) || mainTemplateVars.has(v));
 
     setTemplateOrder(finalVariables);
     const oldVariables = Object.keys(variableConfigs);
@@ -56,7 +97,6 @@ export function processTemplateAndExtractVariables() {
         // [추가] 이름 변경 시에도 예약된 형식의 이름은 사용할 수 없도록 검증합니다.
         if (to.startsWith('block_') && to.includes('_instance_')) {
             showToast(`'${to}'와 같은 형식의 이름은 코드 블록을 위해 예약되어 있어 사용할 수 없습니다.`, 'error', 5000);
-            const editor = getEditorInstance();
             editor.setValue(editor.getValue().replace(`{{${to}}}`, `{{INVALID_VAR_${to}}}`));
             return; // 이름 변경 프로세스를 중단합니다.
         }
@@ -88,17 +128,9 @@ export function processTemplateAndExtractVariables() {
             delete newConfigs[v];
             changed = true;
         });
+        // [수정] 유효성 검사를 통과한 변수만 newConfigs에 추가합니다.
         added.forEach(v => {
             if (!newConfigs[v]) newConfigs[v] = { mode: 'text', options: [], default: '', syncWith: [] };
-        });
-        // [수정] newConfigs에 변수를 먼저 추가한 후, 유효성 검사를 통해 잘못된 변수를 제거합니다.
-        Object.keys(newConfigs).forEach(v => {
-            if (v.startsWith('block_') && v.includes('_instance_')) {
-                showToast(`'${v}'와 같은 형식의 이름은 코드 블록을 위해 예약되어 있어 사용할 수 없습니다.`, 'error', 5000);
-                const editor = getEditorInstance();
-                editor.setValue(editor.getValue().replace(`{{${v}}}`, `{{INVALID_VAR_${v}}}`));
-                delete newConfigs[v]; // [추가] newConfigs에서 잘못된 변수를 제거합니다.
-            }
         });
         setVariableConfigs(newConfigs);
         applyFilterAndSort(finalVariables);
