@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HTML 템플릿 생성기</title>
+
+    <!-- [수정] CSS 파일을 먼저 로드하여 FOUC(Flash of Unstyled Content)를 방지합니다. -->
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css"
+        media="none" id="dark-hljs">
+    <!-- [추가] CodeMirror CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+    <!-- [추가] CodeMirror 다크모드 테마 CSS (material-darker) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/material-darker.min.css">
+
+    <!-- [추가] 페이지 로딩 중 깜빡임(FOUC)을 방지하기 위한 스타일 -->
+    <style>
+        body.is-loading { visibility: hidden; opacity: 0; }
+    </style>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/js-beautify/1.14.11/beautify-html.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script
+        src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/xml/xml.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/highlightjs-line-numbers.js@2.8.0/dist/highlightjs-line-numbers.min.js"></script>
+</head>
+<body>
+    <div id="toast-container"></div>
+    <button id="theme-toggle" title="테마 전환" data-icon="moon"></button>
+    <div class="section">
+        <div class="flex">
+            <button id="exportBtn" class="secondary">내보내기 (JSON)</button>
+            <button id="importBtn" class="secondary">가져오기 (JSON)</button>
+            <input type="file" id="importFile" accept=".json" style="display:none;">
+            <button id="clearStateBtn" class="warning">초기화</button>
+        </div>
+    </div>
+
+    <div id="main-content">
+        <div id="input-column">
+            <div class="section">
+                <h3>
+                    템플릿 입력 
+                    <button class="fullscreen-btn" data-target-id="templateInputWrapper" title="최대화" data-icon="fullscreen"></button>
+                </h3>
+                <div id="templateInputWrapper">
+                    <!-- CodeMirror 에디터가 이 div를 대체합니다. -->
+                </div>
+                <!-- [수정] 코드 블록 버튼을 템플릿 입력란 위로 이동 -->
+                <div class="flex" style="margin-top:8px; justify-content: space-between;">
+                    <div>
+                        <button id="add-code-block-modal-btn" title="코드 블록 추가/삽입" data-icon="code_blocks"></button>
+                    </div>
+                    <div class="flex">
+                        <button id="extractBtn" title="변수 추출 및 업데이트" data-icon="update"></button>
+                        <button id="formatBtn" class="secondary" title="코드 정렬" data-icon="sort"></button>
+                    </div>
+                </div>
+                    <span class="hint">변수 표기: <code>{{name}}</code> (공백 주의)</span>
+                <div id="renameConfirm"></div>
+            </div>
+
+            <div class="section">
+                <h3 class="section-summary">변수 설정</h3>
+                <div id="variables-content-wrapper">
+                    <div id="variableFields"></div>
+                    <div class="hint" style="margin-top: 10px;">모든 변경사항은 브라우저에 자동 저장됩니다.</div>
+                    <div id="collapse-toggle-container">
+                        <button id="collapse-toggle-btn">접기 ▲</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section" id="results-section">
+            <h3>결과</h3>
+            <div class="flex" style="margin-bottom:8px;">
+                <button id="genBtn">결과 생성</button>
+                <button id="copyBtn" title="클립보드 복사" data-icon="copy"></button>
+                <span id="copyMessage" class="hint" style="display:none;">복사 완료!</span>
+                <label class="hint" style="cursor:pointer; user-select:none; margin-left:auto;">
+                    <input type="checkbox" id="realtimeToggle"> 실시간 미리보기
+                </label>
+            </div>
+
+            <div style="display:flex; flex-direction:column; gap:12px;">
+                <div>
+                    <label>RAW 뷰</label>
+                    <!-- [수정] CodeMirror 에디터가 이 div를 대체합니다. -->
+                    <div id="resultOutputWrapper"></div>
+                </div>
+
+                <div>
+                    <label>미리보기</label>
+                    <div id="previewWrapper" class="preview-wrapper" style="position: relative;">
+                        <button class="fullscreen-btn" data-target-id="previewWrapper" title="최대화" data-icon="fullscreen" style="z-index: 1; background: var(--section-bg); border-radius: 50%; padding: 6px;"></button>
+                        <iframe id="preview" sandbox></iframe>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- [추가] 코드 블록 모달 -->
+    <div id="codeBlockModal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4>코드 블록</h4>
+                <button id="codeBlockModalCloseBtn" class="modal-close-btn" title="닫기">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="slider-container">
+                    <div class="slider-wrapper">
+                        <!-- 1단계: 블록 선택/생성 -->
+                        <div class="slider-panel" id="cb-panel-1">
+                            <h5>1. 블록 선택 또는 생성</h5>
+                            <div id="cb-modal-list"></div>
+                            <!-- [추가] 새 블록 이름 입력 UI -->
+                            <div id="cb-new-block-input-container" style="display: none;">
+                                <input type="text" id="cb-new-block-name-input" placeholder="새 코드 블록 이름" style="width: 100%; box-sizing: border-box;">
+                                <div class="flex" style="margin-top: 8px; justify-content: flex-end;">
+                                    <button id="cb-cancel-new-block-btn" class="secondary">취소</button>
+                                    <button id="cb-confirm-new-block-btn">추가</button>
+                                </div>
+                            </div>
+                            <!-- [수정] 새 블록 추가 버튼을 목록 아래로 이동 -->
+                            <div class="flex" style="margin-top: 12px;">
+                                <button id="cb-new-block-btn" class="secondary">새 블록 추가</button>
+                            </div>
+                        </div>
+                        <!-- 2단계: 블록 편집 -->
+                        <div class="slider-panel" id="cb-panel-2">
+                             <!-- JS로 내용 채움 -->
+                        </div>
+                        <!-- 3단계: 삽입 위치 지정 -->
+                        <div class="slider-panel" id="cb-panel-3">
+                            <h5>3. 삽입</h5>
+                            <p class="hint">아래 에디터에서 블록을 삽입할 위치에 커서를 놓고, '여기에 삽입' 버튼을 누르세요.</p>
+                            <div id="cb-template-preview-wrapper"></div>
+                            <div class="flex" style="margin-top: 12px; justify-content: center;">
+                                <button id="cb-insert-here-btn">여기에 삽입</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer" style="justify-content: space-between;">
+                <button id="cb-prev-step-btn" class="icon-btn" title="이전 단계" data-icon="arrow-left"></button>
+                <button id="cb-next-step-btn" class="icon-btn" title="다음 단계" data-icon="arrow-right"></button>
+            </div>
+        </div>
+    </div>
+
+    <!-- [추가] 초기화 확인 모달 -->
+    <div id="resetConfirmModal" class="modal-overlay">
+        <div class="modal-content" style="max-width: 420px;">
+            <div class="modal-body" style="padding: 24px;">
+                <div class="flex" style="align-items: flex-start; gap: 16px;">
+                    <div id="reset-warning-icon-container" class="warning-icon">
+                        <!-- JS로 아이콘 삽입 -->
+                    </div>
+                    <div>
+                        <h4 style="margin-top: 0; margin-bottom: 8px;">모든 설정 초기화</h4>
+                        <p class="hint" style="font-size: 14px; margin: 0;">브라우저에 저장된 템플릿과 변수 설정을 모두 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.</p>
+                    </div>
+                </div>
+                <div class="flex" style="margin-top: 24px; justify-content: flex-end;">
+                    <button id="cancelResetBtn" class="secondary">취소</button>
+                    <button id="confirmResetBtn" class="warning">확인, 초기화합니다</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="customTagModal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4>커스텀 태그 삽입</h4>
+                <button id="modalTopCloseBtn" class="modal-close-btn" title="닫기">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div>
+                    <label>삽입할 부분 선택</label>
+                    <div id="modalFullText" class="full-text-display" contenteditable="false" tabindex="0"></div>
+                </div>
+                <div>
+                    <label for="modalOpenTag">여는 태그</label>
+                    <input type="text" id="modalOpenTag" style="width: 100%; box-sizing: border-box;"
+                        placeholder="<span style=&quot;color:blue;&quot;>">
+                </div>
+                <div>
+                    <label for="modalCloseTag">닫는 태그</label>
+                    <input type="text" id="modalCloseTag" style="width: 100%; box-sizing: border-box;"
+                        placeholder="</span>">
+                </div>
+                <div class="tag-template-controls">
+                    <select id="tagTemplateSelect" style="flex-grow: 1;">
+                        <option value="">저장된 템플릿 없음</option>
+                    </select>
+                    <!-- [수정] 버튼에 원래 클래스와 텍스트를 복원합니다. -->
+                    <button id="saveTagTemplateBtn" class="secondary" title="현재 태그를 템플릿으로 저장" data-icon="save"></button>
+                    <button id="deleteTagTemplateBtn" class="warning" title="선택한 템플릿 삭제" data-icon="trash-2" disabled></button>
+                </div>
+
+                <div class="modal-footer">
+                    <details id="autoTagSettingsDetails" style="width: 100%;">
+                        <summary>고급 설정</summary>
+                        <div class="settings-content">
+                            <div class="settings-row grid-span-2">
+                                <label for="autoTagToggle" style="cursor:pointer; font-weight:600;">
+                                    <input type="checkbox" id="autoTagToggle">
+                                    자동 태그 활성화
+                                </label>
+                            </div>
+                            <div class="settings-group grid-span-2">
+                                <label>태그 모드:</label>
+                                <div class="settings-row" style="margin-top: 5px;">
+                                    <label><input type="radio" name="autoTagMode" value="keyword" checked> 키워드</label>
+                                    <label><input type="radio" name="autoTagMode" value="regex"> 정규 표현식</label>
+                                </div>
+                            </div>
+                            <div class="grid-span-2">
+                                <div id="autoTagKeywordSettings">
+                                    <div class="settings-group">
+                                        <label for="autoTagKeywords">키워드 (쉼표로 구분):</label>
+                                        <input type="text" id="autoTagKeywords" placeholder="예: 스킬, 공격력, 이벤트">
+                                    </div>
+                                </div>
+                                <div id="autoTagRegexSettings" style="display: none;">
+                                    <div class="settings-group"
+                                        style="display: flex; flex-direction: column; gap: 8px;">
+                                        <div>
+                                            <label for="regexTemplateSelect">정규식 템플릿:</label>
+                                            <select id="regexTemplateSelect" style="width: 100%;">
+                                                <option value="">템플릿 선택...</option>
+                                                <option value="\d+::g">모든 숫자</option>
+                                                <option value="[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}::g">이메일 주소
+                                                </option>
+                                                <option value="https?:\/\/[^\s/$.?#].[^\s]*::g">URL 주소</option>
+                                                <option value="&lt;[^>]*&gt;::g">HTML 태그</option>
+                                                <option value="\d{1,3}(,\d{3})*(\.\d+)?::g">쉼표가 있는 숫자 (예: 1,234)
+                                                </option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label for="autoTagRegexPattern">정규식 패턴 (이력):</label>
+                                            <div class="settings-row">
+                                                <input type="text" id="autoTagRegexPattern"
+                                                    placeholder="직접 입력 또는 템플릿 선택" list="regexHistoryDatalist"
+                                                    style="flex-grow: 1;">
+                                                <input type="text" id="autoTagRegexFlags" value="g"
+                                                    style="width: 50px; flex-grow:0;" title="정규식 플래그 (예: g, i, gi)">
+                                                <datalist id="regexHistoryDatalist">
+                                                </datalist>
+                                            </div>
+                                            <span class="hint"
+                                                style="font-size: 12px; margin-top: 4px; display: block;">
+                                                예: 숫자와 % 찾기 -> `\d+%`
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="settings-group grid-span-2">
+                                <label for="autoTagExclusion">제외할 문자 (쉼표로 구분):</label>
+                                <input type="text" id="autoTagExclusion" placeholder="예: 제외, 단어">
+                            </div>
+                        </div>
+                    </details>
+                    <div class="actions-right">
+                        <button id="undoCustomTagBtn" class="icon-btn" title="되돌리기 (Ctrl+Z)" data-icon="undo" disabled></button>
+                        <button id="insertCustomTagBtn">태그 삽입</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <button id="scrollTopBtn" title="맨 위로 가기" data-icon="arrow-up"></button>
+
+    <button id="quick-menu-toggle" title="퀵 메뉴 (SPACE)" data-icon="menu"></button>
+
+    <div id="quick-menu-panel">
+        <div id="quick-menu-content">
+        </div>
+    </div>
+    <script type="module" src="./src/main.js"></script>
+</body>
+</html>

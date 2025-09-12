@@ -1,0 +1,1910 @@
+/*
+ * =================================================================================
+ * 테마 시스템 (Theme System)
+ * ---------------------------------------------------------------------------------
+ * 이 애플리케이션은 CSS 변수(Custom Properties)를 사용하여 라이트/다크 모드를 지원합니다.
+ * 기본 테마는 :root에 정의되며, 다크 모드는 html[data-theme='dark'] 속성 선택자로 재정의됩니다.
+ * 새로운 테마를 추가하려면 이 구조를 참고하여 새로운 속성 선택자와 변수 세트를 정의하면 됩니다.
+ * =================================================================================
+ */
+        :root {
+            --bg-color: #f7f7f9;
+            --text-color: #222;
+            --section-bg: #fff;
+            --field-bg: #fbfdff;
+            --border-color: #e6e9ef;
+            --field-border-color: #eef2f6;
+            --input-border-color: #cbd5e1;
+            --hint-color: #6b7280;
+            --chip-bg: #eef2ff;
+            --chip-text: #374151;
+            --name-span-bg: #e0e7ff;
+            --value-span-text: #4b5563;
+            --btn-secondary-bg: #6b7280;
+            --line-number-bg: #f7f7f9;
+            --line-number-text: #999;
+            --preview-bg: #fff;
+            --toc-link-bg: #eef2ff;
+            --toc-link-text: #2563eb;
+            --scrollbar-thumb-bg: #d1d5db;
+            /* [추가] 스크롤바 색상 변수 */
+            --scrollbar-thumb-hover-bg: #9ca3af;
+            /* [추가] 모달 그림자 색상 변수 */
+            --modal-scroll-shadow-color: rgba(0, 0, 0, 0.1);
+
+        }
+
+        html[data-theme='dark'] {
+            --bg-color: #111827;
+            --text-color: #e5e7eb;
+            --section-bg: #1f2937;
+            --field-bg: #1f2937;
+            --border-color: #374151;
+            --field-border-color: #374151;
+            --input-border-color: #4b5563;
+            --hint-color: #9ca3af;
+            --chip-bg: #374151;
+            --chip-text: #d1d5db;
+            --name-span-bg: #4338ca;
+            /* [수정] 가독성을 위해 더 밝은 보라색으로 변경 */
+            --value-span-text: #e5e7eb;
+            /* [수정] 가독성을 위해 기본 텍스트 색상으로 변경 */
+            --btn-secondary-bg: #4b5563;
+            --line-number-bg: #1f2937;
+            --line-number-text: #6b7280;
+            --preview-bg: #111827;
+            --toc-link-bg: #312e81;
+            --toc-link-text: #a5b4fc;
+            --scrollbar-thumb-bg: #4b5563;
+            /* [추가] 스크롤바 색상 변수 */
+            --scrollbar-thumb-hover-bg: #6b7280;
+            /* [추가] 모달 그림자 색상 변수 (다크모드용) */
+            --modal-scroll-shadow-color: rgba(0, 0, 0, 0.35);
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, sans-serif;
+            position: relative; /* 토스트 컨테이너의 기준점 */
+            margin: 20px;
+            background: var(--bg-color);
+            color: var(--text-color);
+            transition: background-color 0.2s, color 0.2s;
+        }
+
+        /* [추가] 페이지 로딩 중 깜빡임(FOUC) 방지 */
+        body.is-loading {
+            visibility: hidden;
+            opacity: 0;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 18px;
+        }
+
+        /* --- [추가] 토스트 알림 스타일 --- */
+        #toast-container {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 3000;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .toast-message {
+            padding: 12px 20px;
+            border-radius: 8px;
+            color: #fff;
+            font-weight: 500;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            opacity: 0;
+            transform: translateY(-20px);
+            transition: opacity 0.3s, transform 0.3s;
+        }
+
+        .toast-message.is-visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .toast-message.error { background-color: #ef4444; } /* red-500 */
+        .toast-message.warning { background-color: #f97316; } /* orange-500 */
+        .toast-message.info { background-color: #3b82f6; } /* blue-500 */
+
+        .section {
+            background: var(--section-bg);
+            padding: 16px;
+            border-radius: 10px;
+            box-shadow: 0 2px 6px rgba(16, 24, 40, 0.06);
+            margin-bottom: 14px;
+        }
+
+        textarea {
+            width: 100%;
+            min-height: 120px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 10px;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+            font-size: 13px;
+            box-sizing: border-box;
+            white-space: pre;
+            overflow-wrap: normal;
+            overflow-x: auto;
+            background-color: var(--section-bg);
+            color: var(--text-color);
+        }
+
+        h3 {
+            position: relative;
+            margin-top: 0;
+        }
+
+        /* [수정] 상단 여백 제거 */
+        button {
+            background: #2563eb;
+            color: #fff;
+            border: 0;
+            border-radius: 8px;
+            padding: 8px 12px;
+            cursor: pointer;
+        }
+
+        button.secondary {
+            background: var(--btn-secondary-bg);
+        }
+
+        button.warning {
+            background: #dc2626;
+        }
+
+        .flex {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .field {
+            border: 1px solid var(--field-border-color);
+            background: var(--field-bg);
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+        }
+
+        label {
+            font-weight: 600;
+            margin-bottom: 6px;
+            display: block;
+        }
+
+        select,
+        input[type="text"] {
+            padding: 8px;
+            border-radius: 6px;
+            border: 1px solid var(--input-border-color);
+            background-color: var(--section-bg);
+            color: var(--text-color);
+        }
+
+        .options-row {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            border-radius: 8px;
+            background: var(--chip-bg);
+            margin: 6px 6px 0 0;
+            font-size: 13px;
+            max-width: 100%;
+            box-sizing: border-box;
+            justify-content: center;
+            /* [수정] 내부 콘텐츠 중앙 정렬 */
+        }
+
+        /* [추가] 드래그 앤 드롭 스타일 */
+        .chip.dragging {
+            display: none;
+            /* [수정] 드래그하는 동안 원래 항목을 완전히 숨깁니다. */
+        }
+
+        .chip.placeholder {
+            background: transparent;
+            border: 2px dashed #a5b4fc;
+            width: 100px;
+            /* 플레이스홀더의 최소 너비 */
+        }
+
+        .chip.placeholder * {
+            display: none;
+            /* 플레이스홀더 내부 내용은 숨김 */
+        }
+
+        .chip button {
+            background: transparent;
+            color: var(--chip-text);
+            border: 0;
+            cursor: pointer;
+            padding: 0 4px;
+            flex-shrink: 0;
+        }
+
+        /* [복원] pre code 스타일을 독립적으로 다시 정의 */
+        pre {
+            margin: 0;
+            /* pre 태그의 기본 마진 제거 */
+            resize: vertical;
+            /* 크기 조절 핸들 활성화 */
+            overflow: auto;
+            /* resize를 위해 overflow가 auto 또는 scroll이어야 함 */
+            max-height: 320px;
+            border-radius: 8px;
+            /* 모서리 둥글게 */
+        }
+
+        .hint {
+            color: var(--hint-color);
+            font-size: 13px;
+        }
+
+        #renameConfirm {
+            display: none;
+            background: var(--field-bg);
+            border: 1px solid #fde68a;
+            padding: 12px;
+            border-radius: 8px;
+            margin-top: 10px;
+        }
+
+        /* --- 새로운 접기/펼치기 스타일 --- */
+        #variables-content-wrapper {
+            position: relative;
+            padding-bottom: 50px;
+            /* 펼쳤을 때 버튼이 내용을 가리지 않도록 공간 확보 */
+            transition: padding-bottom 0.3s ease;
+        }
+
+        #variables-content-wrapper.is-collapsed {
+            padding-bottom: 0;
+        }
+
+        /* 접혔을 때, 목차 뒤 5번째(.field:nth-of-type(5)) 부터 숨김 */
+        #variables-content-wrapper.is-collapsed .field:nth-of-type(n+5) {
+            display: none;
+        }
+
+        #collapse-toggle-container {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 50px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            pointer-events: none;
+            /* 컨테이너는 클릭되지 않도록 */
+        }
+
+        /* 접혔을 때, 하단 블러 및 그라데이션 효과 */
+        #variables-content-wrapper.is-collapsed #collapse-toggle-container::before {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 100px;
+            background: linear-gradient(to top, var(--section-bg) 30%, transparent);
+        }
+
+        /* [추가] 목차 필터/정렬 UI 스타일 */
+        .toc-controls {
+            /* [수정] flexbox 레이아웃 강화 */
+            display: flex;
+            justify-content: space-between;
+            /* 양쪽 끝으로 정렬 */
+            align-items: center;
+            /* 세로 중앙 정렬 */
+            gap: 8px;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+        }
+
+        .toc-controls .filter-group {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .toc-controls button {
+            font-size: 13px;
+            padding: 4px 10px;
+            /* [추가] 비활성 버튼 스타일 */
+            background-color: #e5e7eb;
+            /* light gray */
+            color: #4b5563;
+            /* dark gray */
+        }
+
+        .toc-controls button.active {
+            /* [수정] 활성 버튼 스타일 */
+            background-color: #2563eb;
+            /* 기본 파란색 */
+            color: #fff;
+        }
+
+        /* [추가] 그룹 필터 버튼에 대한 특별 스타일 */
+        .toc-controls button[data-group-key] {
+            opacity: 0.7;
+            /* 비활성 상태일 때 약간 투명하게 */
+            transition: opacity 0.2s, box-shadow 0.2s;
+        }
+
+        .toc-controls button[data-group-key].active {
+            opacity: 1;
+            /* 활성 상태일 때 완전 불투명하게 */
+            color: #111827;
+            /* [수정] 활성 상태일 때 텍스트 색상을 더 어둡게 하여 가독성 향상 */
+            font-weight: 600;
+            box-shadow: 0 0 0 2px var(--section-bg), 0 0 0 4px var(--sync-color, #fdba74);
+            /* 활성 상태 테두리 효과 */
+        }
+
+        #collapse-toggle-btn {
+            pointer-events: all;
+            /* 버튼은 클릭 가능하도록 */
+            z-index: 10;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+            background-color: var(--section-bg);
+            /* [수정] 색상 변수 적용 */
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+        }
+
+        /* 변수 목차 스타일 */
+        .toc {
+            position: relative;
+            /* [추가] 버튼 위치의 기준점 */
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            padding: 10px;
+            background-color: var(--field-bg);
+            border: 1px solid #eef2f6;
+            border-radius: 8px;
+            transition: max-height 0.35s ease-in-out, padding-bottom 0.35s ease-in-out;
+            /* [수정] 패딩 전환 추가 */
+            overflow: hidden;
+            margin-bottom: 10px;
+            /* [추가] 아래 요소와의 간격 */
+        }
+
+        /* [추가] 펼쳐진 상태를 위한 클래스 */
+        .toc.is-expanded {
+            overflow: visible;
+            max-height: none !important;
+            /* JS에서 설정한 max-height를 무시하고 항상 전체 높이 */
+            padding-bottom: 40px;
+            /* [추가] 펼쳤을 때 접기 버튼을 위한 공간 확보 */
+        }
+
+        /* [추가] 접혔을 때, 버튼 공간 확보 및 overflow 처리 */
+        .toc.is-collapsed {
+            padding-bottom: 50px;
+            /* [수정] 버튼과 콘텐츠 사이의 여백을 충분히 확보 */
+            overflow: hidden;
+            /* 내부 요소가 넘치지 않도록 */
+        }
+
+        .toc a {
+            text-decoration: none;
+            color: var(--toc-link-text);
+            /* [수정] CSS 변수 적용 */
+            background: var(--toc-link-bg);
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 13px;
+        }
+
+        details.field {
+            padding: 0;
+            /* details 태그의 기본 패딩 제거 */
+        }
+
+        details.field>summary {
+            position: relative;
+            /* [추가] 커스텀 화살표의 위치 기준점 */
+            padding: 10px;
+            padding-right: 30px;
+            /* [추가] 커스텀 화살표를 위한 공간 확보 */
+            cursor: pointer;
+            font-weight: 600;
+            list-style: none;
+            /* [추가] 기본 화살표(마커) 숨기기 */
+        }
+
+        /* [추가] 웹킷 브라우저에서 기본 화살표 숨기기 */
+        details.field>summary::-webkit-details-marker {
+            display: none;
+        }
+
+        /* [추가] 커스텀 화살표 생성 */
+        details.field>summary::after {
+            content: '▼';
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 12px;
+            color: var(--hint-color);
+            transition: transform 0.2s;
+        }
+
+        /* [추가] 펼쳐졌을 때 화살표 회전 */
+        details[open]>summary::after {
+            transform: translateY(-50%) rotate(180deg);
+        }
+
+        .field-content {
+            padding: 0 10px 10px 10px;
+        }
+
+        /* --- [추가] 목차 접기/펼치기 스타일 --- */
+        .toc-toggle-btn {
+            /* [수정] 버튼을 목차 내 하단 중앙에 배치 */
+            position: absolute;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 5;
+            display: none;
+            /* JS가 필요할 때 block으로 변경 */
+            font-size: 13px;
+            padding: 4px 12px;
+            background-color: var(--section-bg);
+            /* [재수정] 테마에 맞는 배경색을 사용하도록 변수로 복원 */
+            color: var(--text-color);
+            /* [재수정] 테마에 맞는 글자색을 사용하도록 변수로 복원 */
+            border: 1px solid var(--border-color);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            transition: opacity 0.2s;
+            /* [추가] 부드러운 전환 효과 */
+        }
+
+        /* [추가] 버튼 뒤에 그라데이션 배경 추가 */
+        .toc.is-collapsed::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 70px;
+            /* [수정] 그라데이션 높이를 여백에 맞게 조정 */
+            background: linear-gradient(to top, var(--field-bg) 50%, transparent);
+            pointer-events: none;
+            /* 클릭 방해하지 않도록 */
+            border-bottom-left-radius: 8px;
+            border-bottom-right-radius: 8px;
+        }
+
+        /* 목차 클릭 시 하이라이트 효과 */
+        @keyframes highlight-glow {
+
+            0%,
+            50% {
+                box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.4);
+            }
+
+            25%,
+            75% {
+                box-shadow: 0 0 0 4px rgba(37, 99, 235, 0);
+            }
+
+            100% {
+                box-shadow: 0 0 0 4px rgba(37, 99, 235, 0);
+            }
+        }
+
+        /* [추가] JS로 제어하는 하이라이트 효과 */
+        details.field.is-highlighted {
+            animation: highlight-glow 1.2s ease-out;
+        }
+
+        /* 줄 번호 스타일 */
+        .editor-wrapper {
+            position: relative;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            overflow: hidden;
+            /* 자식 요소가 테두리를 넘지 않도록 */
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+            /* [추가] 부드러운 전환 효과 */
+        }
+
+        /* [추가] 포커스 시 래퍼에 하이라이트 적용 */
+        .editor-wrapper.is-focused {
+            border-color: #2563eb;
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
+        }
+
+        .line-numbers {
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 40px;
+            /* [수정] textarea의 padding-left와 일치 */
+            box-sizing: border-box;
+            /* 핵심: padding과 border를 width에 포함 */
+            padding: 10px;
+            /* 모든 방향에 10px 여백 적용 */
+            background-color: var(--line-number-bg);
+            color: var(--line-number-text);
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+            font-size: 13px;
+            text-align: right;
+            border-right: 1px solid var(--border-color);
+            user-select: none;
+            overflow: hidden;
+            line-height: 1.5;
+            /* textarea와 일치시켜야 함 */
+        }
+
+        .line-numbers>div {
+            white-space: pre;
+            /* 핵심: 줄바꿈 문자를 인식하도록 설정 */
+            text-align: right;
+        }
+
+        .editor-wrapper textarea {
+            border: none;
+            border-left: 40px solid transparent;
+            /* [수정] 스크롤바가 가려지지 않도록 테두리로 공간 확보 */
+            line-height: 1.5;
+            /* line-numbers와 일치시켜야 함 */
+            word-break: break-word;
+            /* [추가] 긴 단어 줄바꿈 처리 */
+            resize: vertical;
+            /* 세로 크기 조절만 허용 */
+        }
+
+        /* [추가] textarea 포커스 시 브라우저 기본 테두리 제거 */
+        .editor-wrapper textarea:focus {
+            outline: none;
+        }
+
+        /* [추가] 전체 화면 상태일 때의 스타일 */
+        .editor-wrapper:fullscreen,
+        .preview-wrapper:fullscreen {
+            background-color: var(--bg-color);
+            padding: 10px;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: row;
+            /* [수정] 가로로 배치되도록 변경 */
+        }
+
+        .editor-wrapper:fullscreen .line-numbers {
+            position: static;
+            /* 전체 화면에서는 absolute 해제 */
+            height: 100%;
+            flex-shrink: 0;
+            /* [추가] 줄어들지 않도록 고정 */
+        }
+
+        .editor-wrapper:fullscreen textarea,
+        .preview-wrapper:fullscreen iframe {
+            flex-grow: 1;
+            /* 남은 공간을 모두 차지하도록 설정 */
+            height: 100%;
+            border-left: none;
+            /* [추가] 전체 화면에서는 왼쪽 투명 테두리 제거 */
+            border-radius: 0;
+            /* [추가] 전체 화면에서는 모든 모서리를 직각으로 만듭니다. */
+        }
+
+        /* --- [수정] 최대화 모드 스타일 --- */
+        .hljs-ln-numbers {
+            text-align: right;
+            border-right: 1px solid var(--border-color);
+            color: var(--line-number-text);
+            padding-right: 10px !important;
+            user-select: none;
+        }
+
+        .is-maximized {
+            position: fixed !important;
+            top: 0;
+            left: 0;
+            width: 100% !important;
+            height: 100% !important;
+            z-index: 2500;
+            margin: 0 !important;
+            border-radius: 0 !important;
+            border: none !important;
+            /* 내부 요소들이 확장되도록 flex 설정 */
+            display: flex;
+            flex-direction: row;
+            padding: 10px;
+            box-sizing: border-box;
+            background-color: var(--bg-color);
+        }
+
+        .is-maximized .line-numbers {
+            position: static;
+            height: 100%;
+            flex-shrink: 0;
+        }
+
+        .is-maximized textarea,
+        .is-maximized iframe {
+            flex-grow: 1;
+            height: 100%;
+            border-left: none;
+            border-radius: 0;
+        }
+
+        /* [추가] 최대화 모드에서 CodeMirror 에디터가 래퍼를 꽉 채우도록 설정 */
+        .is-maximized .CodeMirror {
+            flex-grow: 1;
+            height: 100%;
+            max-height: none; /* [추가] 최대화 시 기존 max-height 제한 해제 */
+        }
+
+        .is-maximized .fullscreen-btn {
+            display: none;
+        }
+
+        /* 최대화 상태에서는 원래 버튼 숨김 */
+        .is-maximized .exit-fullscreen-btn {
+            position: absolute;
+            top: 10px;
+            right: 15px;
+            z-index: 2501;
+            /* 다른 요소 위에 표시 */
+        }
+
+        /* [추가] 최대화 모드 닫기 버튼 스타일 개선 */
+        .exit-fullscreen-styled-btn {
+            background: var(--section-bg);
+            border-radius: 50%;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* 미리보기 iframe 스타일 수정 */
+        .preview-wrapper {
+            overflow-x: auto;
+            /* 핵심: 자식 요소가 넘칠 경우 수평 스크롤바 생성 */
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background: var(--preview-bg);
+        }
+
+        iframe#preview {
+            width: 100%;
+            min-height: 150px;
+            border: 0;
+            /* 테두리는 래퍼로 이동 */
+            display: block;
+            /* iframe의 하단 여백 제거 */
+        }
+
+        .truncate {
+            display: inline-block;
+            /* [수정] block -> inline-block */
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 120px;
+            /* [수정] 최대 너비 조정 */
+            vertical-align: middle;
+            /* 다른 요소와 수직 정렬 */
+        }
+
+        /* 반응형 레이아웃을 위한 스타일 */
+        #main-content {
+            display: grid;
+            grid-template-columns: 1fr;
+            /* 모바일 기본: 1열 */
+            gap: 14px;
+        }
+
+        /* [추가] Grid 아이템이 할당된 공간보다 커지는 것을 방지합니다. */
+        #input-column {
+            min-width: 0;
+        }
+
+        #results-section {
+            /* 오른쪽 열이 항상 콘텐츠 높이를 유지하도록 */
+            align-self: start;
+            min-width: 0;
+            /* 핵심: Grid 아이템이 할당된 공간보다 커지는 것을 방지 */
+        }
+
+        @media (min-width: 1024px) {
+            #main-content {
+                grid-template-columns: 1fr 1fr;
+                /* PC: 2열 */
+            }
+
+            #results-section {
+                grid-column: 2;
+                grid-row: 1 / span 2;
+                /* 입력 컬럼이 길어져도 같은 줄에 있도록 */
+            }
+
+            #input-column {
+                grid-column: 1;
+                grid-row: 1 / span 2;
+            }
+        }
+
+        /* --- [추가] 다크모드 토글 버튼 스타일 --- */
+        #theme-toggle {
+            position: fixed;
+            top: 15px;
+            right: 20px;
+            background: var(--section-bg);
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+            z-index: 1000;
+            /* [추가] 이모지 정렬을 위한 스타일 */
+            font-size: 20px;
+            line-height: 1;
+        }
+
+        /* [추가] 테마 상태에 따라 올바른 아이콘을 표시합니다. */
+        html:not([data-theme='dark']) #theme-toggle .icon-moon {
+            display: block;
+        }
+
+        html[data-theme='dark'] #theme-toggle .icon-sun {
+            display: block;
+        }
+
+        .icon-sun,
+        .icon-moon {
+            display: none;
+        }
+
+        /* --- [추가] 맨 위로 가기 버튼 스타일 --- */
+        #scrollTopBtn {
+            display: none;
+            /* 기본적으로 숨김 */
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            /* 오른쪽 하단으로 위치 지정 */
+            z-index: 999;
+            border: 1px solid var(--border-color);
+            outline: none;
+            background-color: var(--section-bg);
+            color: var(--text-color);
+            cursor: pointer;
+            padding: 10px;
+            display: flex;
+            /* [추가] SVG 아이콘 중앙 정렬을 위해 flex 사용 */
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+            transition: opacity 0.3s, visibility 0.3s;
+        }
+
+        /* [추가] 맨 위로 가기 버튼 내부 SVG 스타일 */
+        #scrollTopBtn svg {
+            width: 20px;
+            height: 20px;
+            fill: currentColor;
+            /* 버튼의 color 속성을 따라감 */
+        }
+
+        /* --- [수정] 동기화 선택 UI 스타일 (체크박스) --- */
+        .sync-checkbox-wrapper {
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .sync-checkbox-list {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            max-height: 80px;
+            /* [추가] 3개 항목 높이 + 약간의 여유 */
+            overflow-y: auto;
+            /* [추가] 내용이 넘칠 경우 스크롤바 표시 */
+            margin-top: 5px;
+        }
+
+        .sync-checkbox-list label {
+            font-weight: normal;
+            font-size: 14px;
+        }
+
+        /* --- [추가] 동기화 그룹 하이라이트 스타일 --- */
+        /* [추가] 그룹 하이라이트를 위한 애니메이션 */
+        @keyframes highlight-group-glow {
+
+            0%,
+            100% {
+                box-shadow: 0 0 0 2px transparent, inset 0 0 0 2px transparent;
+            }
+
+            50% {
+                box-shadow: 0 0 0 4px var(--sync-color, #fdba74);
+            }
+        }
+
+        .sync-group-highlight {
+            transition: box-shadow 0.2s ease-in-out;
+            border-radius: 8px;
+            /* details 태그에 radius가 없으므로 추가 */
+        }
+
+        /* [수정] 그룹 하이라이트가 일시 중지되지 않았을 때만 애니메이션 적용 */
+        .sync-group-highlight.is-hovered:not(.group-highlight-paused) {
+            animation: highlight-group-glow 1.5s ease-out infinite;
+        }
+
+        /* --- [추가] 동기화 그룹 태그 스타일 --- */
+        .sync-group-tag {
+            font-size: 11px;
+            font-weight: normal;
+            padding: 2px 6px;
+            border-radius: 4px;
+            margin-left: 6px;
+            vertical-align: middle;
+            background-color: var(--sync-color, #fdba74);
+            color: #1f2937;
+            /* 어두운 텍스트 색상으로 고정하여 가독성 확보 */
+        }
+
+        /* --- [추가] 그룹 초기화 버튼 스타일 --- */
+        .sync-group-reset-btn {
+            display: inline-block;
+            font-size: 12px;
+            font-weight: bold;
+            color: var(--hint-color);
+            margin-left: 4px;
+            cursor: pointer;
+            vertical-align: middle;
+        }
+
+        .sync-group-reset-btn:hover {
+            color: #ef4444;
+            /* red-500 */
+        }
+
+        /* --- [추가] 퀵 메뉴 스타일 --- */
+        #quick-menu-toggle {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            z-index: 1001;
+            /* 다른 고정 요소보다 위에 오도록 */
+            background-color: var(--section-bg);
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s ease-in-out, opacity 0.3s ease-in-out;
+        }
+
+        #quick-menu-toggle.is-open {
+            transform: rotate(90deg);
+        }
+
+        #quick-menu-toggle svg {
+            width: 20px;
+            height: 20px;
+        }
+
+        #quick-menu-panel {
+            position: fixed;
+            /* [수정] bottom 대신 top을 기준으로 위치를 잡고, JS에서 bottom을 동적으로 계산합니다. */
+            top: auto;
+            bottom: auto;
+            /* [수정] JS에서 top으로 위치를 제어하므로 bottom은 auto로 설정합니다. */ 
+            left: 20px;
+            min-width: 280px;
+            max-width: 50vw;
+            /* 화면 너비의 50%를 넘지 않도록 제한 */
+            max-height: 70vh; /* Fallback for older browsers */
+            max-height: 70dvh; 
+            /* [수정] 간략히 보기 모드에서는 최대 높이를 70%로 제한하고, JS에서 동적으로 제어합니다. */
+            background-color: var(--section-bg);
+            box-sizing: border-box;
+            /* [추가] 패딩과 테두리를 너비에 포함시켜 계산 오류 방지 */
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            z-index: 1000;
+            transform: translateY(20px) scale(0.95);
+            opacity: 0;
+            visibility: hidden;
+            transition: transform 0.2s ease-out, opacity 0.2s ease-out, visibility 0.2s;
+            overflow-x: hidden;
+            /* [추가] 불필요한 가로 스크롤바를 항상 숨깁니다. */
+            display: inline-flex;
+            /* [수정] 너비가 콘텐츠에 맞춰지도록 inline-flex 사용 */
+            flex-direction: column;
+        }
+
+        #quick-menu-panel.is-open {
+            transform: translateY(0) scale(1);
+            opacity: 1;
+            visibility: visible;
+        }
+
+        /* [추가] 퀵 메뉴 펼쳐진 상태 스타일 */
+        #quick-menu-panel.is-expanded {
+            /* [수정] 넓은 화면에서는 최대 너비를 50vw로 제한 */
+            max-width: 50vw;
+            /* [추가] 크게 보기 모드에서는 다시 top을 기준으로 위치를 잡아 화면을 채웁니다. */
+            top: 20px;
+            max-height: calc(100vh - 40px); /* Fallback */
+            max-height: calc(100dvh - 40px); 
+            /* [수정] 상하 여백(20px+20px)을 제외한 최대 높이 */
+        }
+
+        /* [추가] 좁은 화면에서 간략히 보기 버튼 숨기기 */
+        @media (max-width: 1024px) {
+            #quick-menu-expand-btn {
+                display: none !important;
+                /* [수정] 퀵 메뉴 상태와 관계없이 항상 숨김 */
+            }
+        }
+
+        #quick-menu-header {
+            padding: 8px 12px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+        }
+
+        /* [수정] 퀵패널 모바일 닫기 버튼 추가 - 기존 버튼들과 충돌하지 않도록 별도 id 사용 */
+        #quick-menu-expand-btn {
+            font-size: 12px;
+            padding: 2px 6px;
+            cursor: pointer;
+        }
+
+        #quick-menu-close-btn {
+            font-size: 14px;
+            width: 34px;
+            height: 34px;
+            padding: 0;
+            border-radius: 6px;
+            border: none;
+            background: transparent;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            color: #e53935;
+            /* 빨간색 → 흰 배경 위에서 강한 대비 */
+        }
+
+        #quick-menu-close-btn:hover {
+            background: rgba(229, 57, 53, 0.1);
+        }
+
+        @media (prefers-color-scheme: dark) {
+            #quick-menu-close-btn {
+                color: #ff6b6b;
+                /* 다크 모드에서도 붉은 계열 */
+            }
+
+            #quick-menu-close-btn:hover {
+                background: rgba(255, 107, 107, 0.15);
+            }
+        }
+
+        @media (max-width: 1024px) {
+            #quick-menu-close-btn {
+                display: inline-flex;
+            }
+        }
+
+        /* 콘텐츠 영역은 확장 가능하도록 유지 */
+        #quick-menu-content {
+            padding: 12px;
+            overflow-y: auto;
+            flex-grow: 1;
+        }
+
+        /* [추가] 펼쳐졌을 때 콘텐츠 영역을 Grid 컨테이너로 사용 */
+        #quick-menu-panel.is-expanded #quick-menu-content {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 2fr auto;
+            /* [수정] 레이블(1fr), 입력(2fr), 링크(auto) 비율로 유연하게 너비 조절 */
+            align-items: start;
+            /* [수정] 모든 항목을 위쪽 기준으로 정렬하여 수직 정렬을 맞춥니다. */
+            gap: 8px 12px;
+            /* 세로 8px, 가로 12px 간격 */
+        }
+
+        .quick-menu-item {
+            display: flex;
+            align-items: start;
+            /* [수정] 간략히 보기에서도 위쪽 기준으로 정렬 */
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+
+        /* [추가] 퀵 메뉴가 펼쳐졌을 때, 레이블의 너비 제한을 해제 */
+        #quick-menu-panel.is-expanded .quick-menu-item {
+            /* [수정] 자식 요소들이 부모 Grid에 직접 속하도록 설정합니다. */
+            /* labelContainer는 Grid의 아이템으로 남기고, 그 안의 요소들은 flex로 정렬됩니다. */
+            display: contents; 
+        }
+
+        #quick-menu-panel.is-expanded .quick-menu-item label,
+        #quick-menu-panel.is-expanded .quick-menu-item a {
+            align-self: start;
+        }
+
+        /* [수정] 크게 보기 상태에서 labelContainer가 Grid의 한 컬럼을 차지하도록 합니다. */
+        #quick-menu-panel.is-expanded .label-container {
+            grid-column: 1;
+            min-width: 0; /* flex/grid 아이템이 넘치는 것을 방지 */
+        }
+
+        /* [추가] 점과 레이블을 감싸는 컨테이너 스타일 */
+        .quick-menu-label-wrapper {
+            display: flex;
+            align-items: center;
+            padding-top: 6px;
+            /* [추가] 입력 상자와의 세로 정렬을 위해 래퍼에 패딩 적용 */
+            gap: 6px;
+            /* 점과 레이블 사이의 간격 */
+            overflow-x: auto;
+            /* [수정] 스크롤 가능하도록 auto로 변경 */
+            user-select: none;
+            /* [추가] 드래그 중 텍스트 선택 방지 */
+            -ms-overflow-style: none;
+            /* IE and Edge */
+            scrollbar-width: none;
+            /* Firefox */
+        }
+
+        /* [추가] 스크롤바 숨기기 (Chrome, Safari, Opera) */
+        .quick-menu-label-wrapper::-webkit-scrollbar {
+            display: none;
+        }
+
+        /* [수정] '간략히 보기' 모드에서 변수명 너비 설정 (약 5글자) */
+        .quick-menu-item .label-container {
+            position: relative; /* 그림자 효과를 위한 position */
+            width: 80px;
+            flex-shrink: 0; /* 너비가 줄어들지 않도록 고정 */
+        }
+
+        /* [수정] '크게 보기' 모드에서 변수명 너비 설정 (약 10글자) */
+        #quick-menu-panel.is-expanded .quick-menu-item .label-container {
+            width: 120px;
+        }
+
+        /* [수정] 변수명 레이블 스타일 */
+        .quick-menu-item label {
+            font-weight: normal;
+            font-size: 14px;
+            margin: 0;
+            white-space: nowrap; /* 줄바꿈 방지 */
+            overflow: visible; /* 스크롤을 위해 hidden 해제 */
+            text-overflow: clip; /* 말줄임표 제거 */
+            flex-shrink: 0; /* 스크롤을 위해 줄어들지 않도록 설정 */
+        }
+
+        .label-container::before,
+        .label-container::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 15px;
+            pointer-events: none;
+            /* 그림자가 클릭을 방해하지 않도록 */
+            transition: opacity 0.2s;
+            z-index: 1;
+            /* [추가] 레이블 위에 그림자가 오도록 설정 */
+        }
+
+        .label-container::before {
+            left: 0;
+            background: linear-gradient(to right, var(--section-bg), transparent);
+            opacity: 0;
+        }
+
+        .label-container::after {
+            right: 0;
+            background: linear-gradient(to left, var(--section-bg), transparent);
+            opacity: 0;
+        }
+
+        .label-container.scroll-start::before {
+            opacity: 0;
+        }
+
+        .label-container.scroll-start::after {
+            opacity: 1;
+        }
+
+        .label-container.scroll-middle::before,
+        .label-container.scroll-middle::after {
+            opacity: 1;
+        }
+
+        .label-container.scroll-end::before {
+            opacity: 1;
+        }
+
+        .label-container.scroll-end::after {
+            opacity: 0;
+        }
+
+        /* [추가] 퀵 메뉴 그룹 색상 점 스타일 */
+        .quick-menu-group-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: var(--sync-color, transparent);
+            margin-right: 6px;
+            flex-shrink: 0;
+            /* 점 크기가 줄어들지 않도록 고정 */
+        }
+
+        .quick-menu-item .input-control {
+            flex-grow: 1;
+        }
+
+        .quick-menu-item a {
+            color: var(--hint-color);
+            text-decoration: none;
+            font-size: 18px;
+            display: flex;
+            /* [추가] 이모지 중앙 정렬을 위해 flex 사용 */
+            align-items: center;
+            /* [추가] 세로 중앙 정렬 */
+            padding-top: 4px;
+            /* [추가] 다른 요소들과의 정렬을 위한 미세 조정 */
+        }
+
+        /* --- [추가] 좁은 화면을 위한 퀵 메뉴 반응형 스타일 --- */
+        @media (max-width: 1024px) {
+            #quick-menu-panel.is-expanded {
+                /* [수정] 좁은 화면에서는 콘텐츠 높이에 따라 유동적으로 변하도록 설정 */
+                top: 20px;
+                /* [수정] 상단 여백 고정 */
+                left: 10px;
+                right: 10px;
+                bottom: 20px;
+                /* [수정] 하단 여백 고정 */ 
+                max-height: 90vh; /* Fallback */
+                max-height: 90dvh; 
+                /* [수정] vh 대신 dvh 사용 */
+                width: auto;
+                /* 너비를 자동으로 채움 */
+                max-width: none;
+                /* 최대 너비 제한 해제 */
+            }
+
+            /* [추가] 모바일에서 퀵 패널이 열리면 토글 버튼 숨기기 */
+            #quick-menu-toggle.is-open {
+                transform: translateY(calc(100% + 20px)) rotate(90deg);
+                /* 아래로 완전히 사라지면서 회전 */
+                pointer-events: none;
+                /* 숨겨졌을 때 클릭되지 않도록 설정 */
+            }
+        }
+
+        /* [추가] 모바일에서 간략히 보기 모드일 때, 높이를 내용에 맞게 자동 조절 */
+        @media (max-width: 1024px) {
+            #quick-menu-panel:not(.is-expanded) {
+                bottom: 70px;
+            }
+        }
+
+        /* --- [추가] 커스텀 스크롤바 스타일 --- */
+        /* 모든 스크롤바에 적용 */
+        ::-webkit-scrollbar {
+            width: 10px;
+            height: 10px;
+        }
+
+        /* 스크롤바 트랙 (배경) */
+        ::-webkit-scrollbar-track {
+            background: transparent;
+            /* 트랙은 투명하게 처리 */
+        }
+
+        /* 스크롤바 막대 (thumb) */
+        ::-webkit-scrollbar-thumb {
+            background-color: var(--scrollbar-thumb-bg);
+            border-radius: 10px;
+            border: 2px solid var(--bg-color);
+            /* 트랙과 같은 효과를 내기 위한 테두리 */
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background-color: var(--scrollbar-thumb-hover-bg);
+        }
+
+        /* --- [추가] 스크롤바 코너 스타일 --- */
+        ::-webkit-scrollbar-corner {
+            background-color: transparent;
+        }
+
+        /* --- [추가] 커스텀 크기 조절 핸들(resizer) 스타일 --- */
+        ::-webkit-resizer {
+            /* [수정] resizer를 완전히 투명하게 처리합니다. */
+            background-color: transparent;
+        }
+
+        /* --- [추가] 텍스트 포맷팅 툴바 스타일 --- */
+        .text-format-toolbar {
+            display: flex;
+            gap: 4px;
+            margin-top: 8px;
+        }
+
+        .text-format-toolbar button {
+            background-color: transparent;
+            border: 1px solid transparent;
+            color: var(--hint-color);
+            padding: 4px 8px;
+            /* [수정] 좌우 패딩 추가 */
+            width: auto;
+            /* [수정] 너비를 자동으로 조절 */
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            /* [추가] 텍스트를 굵게 표시 */
+            transition: background-color 0.2s, border-color 0.2s;
+        }
+
+        .text-format-toolbar button:hover {
+            background-color: var(--field-bg);
+            border-color: var(--border-color);
+        }
+
+        /* --- [수정] 커스텀 태그 모달 스타일 --- */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.6);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.2s, visibility 0.2s;
+        }
+
+        .modal-overlay.is-visible {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .modal-content {
+            background: var(--section-bg);
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+            width: 90%;
+            max-width: 600px;
+            display: flex;
+            flex-direction: column;
+            transform: scale(0.95);
+            transition: transform 0.2s;
+            max-height: 90vh;
+            overflow: hidden;
+        }
+
+        .modal-overlay.is-visible .modal-content {
+            transform: scale(1);
+        }
+
+        .modal-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+        }
+
+        .modal-body {
+            padding: 20px;
+            overflow-y: auto;
+            overflow-x: hidden; /* [추가] 슬라이더가 넘치는 것을 방지 */
+            position: relative;
+        }
+
+        /* [추가] flex gap을 대체하기 위한 margin 설정 */
+        .modal-body>div:not(:last-child) {
+            margin-bottom: 15px;
+        }
+
+        .modal-header h4 {
+            margin: 0;
+        }
+
+        /* [추가] 모달 스크롤바 숨기기 */
+        .modal-body::-webkit-scrollbar {
+            display: none;
+        }
+
+        .modal-body {
+            -ms-overflow-style: none;
+            /* IE and Edge */
+            scrollbar-width: none;
+            /* Firefox */
+        }
+
+        /* [수정] 모달 스크롤 그림자 효과 (modal-body에 적용) */
+        .modal-body::before,
+        .modal-body::after {
+            content: '';
+            position: fixed;
+            left: 0;
+            right: 0;
+            height: 20px;
+            z-index: 10;
+            pointer-events: none;
+            transition: opacity 0.2s;
+        }
+
+        .modal-body::before {
+            top: 57px;
+            background: linear-gradient(to bottom, var(--modal-scroll-shadow-color), transparent);
+            opacity: var(--scroll-top-opacity, 0);
+        }
+
+        .modal-body::after {
+            bottom: 0px;
+            background: linear-gradient(to top, var(--modal-scroll-shadow-color), transparent);
+            opacity: var(--scroll-bottom-opacity, 0);
+        }
+
+        .modal-content .full-text-display {
+            background-color: var(--bg-color);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 10px;
+            max-height: 150px;
+            overflow-y: auto;
+            user-select: text;
+            /* 텍스트 선택 가능 */
+            cursor: text;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+            font-size: 13px;
+            line-height: 1.5;
+            /* [추가] 자동 줄바꿈을 위한 속성 */
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+        /* [추가] 모달 텍스트 영역 플레이스홀더 스타일 */
+        .modal-content .full-text-display:empty::before {
+            content: attr(data-placeholder);
+            color: var(--hint-color);
+            font-style: italic;
+            cursor: default;
+            /* 플레이스홀더는 텍스트 선택이 안 되도록 */
+            user-select: none;
+            /* 플레이스홀더는 클릭 이벤트를 받지 않도록 */
+            pointer-events: none;
+        }
+
+
+        /* [추가] 모달 텍스트 영역 포커스 스타일 */
+        .modal-content .full-text-display:focus {
+            outline: none;
+            border-color: #2563eb;
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
+        }
+
+        /* [추가] 모달 푸터 스타일 */
+        .modal-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            /* [수정] 세로로 배치하기 위해 flex-wrap 추가 */
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .modal-footer .actions-right {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            margin-left: auto;
+            /* [추가] 오른쪽 정렬 */
+        }
+
+        /* [추가] 자동 태그 설정 패널 스타일 */
+        #autoTagSettingsDetails summary {
+            cursor: pointer;
+            font-weight: 500;
+            color: var(--hint-color);
+            font-size: 14px;
+            list-style: none;
+            /* 기본 화살표 숨기기 */
+            display: inline-block;
+        }
+
+        #autoTagSettingsDetails summary::-webkit-details-marker {
+            display: none;
+        }
+
+        #autoTagSettingsDetails summary::before {
+            content: '▶';
+            display: inline-block;
+            margin-right: 6px;
+            font-size: 10px;
+            transition: transform 0.2s;
+        }
+
+        #autoTagSettingsDetails[open] summary::before {
+            transform: rotate(90deg);
+        }
+
+        .settings-content {
+            padding: 10px;
+            background-color: var(--bg-color);
+            border-radius: 8px;
+            margin-top: 8px;
+            display: grid;
+            /* [개선] flex에서 grid로 변경하여 2단 레이아웃 구현 */
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            align-items: start;
+        }
+
+        /* [추가] Grid 레이아웃에서 컬럼을 합치는 유틸리티 클래스 */
+        .settings-content .grid-span-2 {
+            grid-column: span 2;
+        }
+
+        .settings-group {
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+        }
+
+        .settings-group>label {
+            /* 그룹 제목 스타일 */
+            font-size: 13px;
+        }
+
+        .settings-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .settings-row label {
+            margin-bottom: 0;
+            font-weight: normal;
+            white-space: nowrap;
+            /* 줄바꿈 방지 */
+        }
+
+        .settings-row input[type="text"],
+        .settings-row select,
+        .settings-row input[type="text"] {
+            flex-grow: 1;
+        }
+
+        /* [수정] 모달 닫기 버튼 스타일 */
+        .modal-close-btn {
+            position: absolute;
+            top: 10px;
+            right: 15px;
+            background: none;
+            border: none;
+            font-size: 24px;
+            color: var(--hint-color);
+            cursor: pointer;
+            padding: 0;
+            line-height: 1;
+        }
+
+        .modal-header .modal-close-btn {
+            position: static;
+        }
+
+        .modal-close-btn:hover {
+            color: var(--text-color);
+        }
+
+        /* [추가] 되돌리기 버튼 아이콘 스타일 */
+        .modal-content button svg {
+            fill: currentColor;
+        }
+
+        /* --- [추가] 전체 화면 버튼 스타일 --- */
+        .fullscreen-btn {
+            position: absolute;
+            top: 50%;
+            right: 0;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            color: var(--hint-color);
+            cursor: pointer;
+            padding: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .fullscreen-btn:hover {
+            color: var(--text-color);
+        }
+
+        .fullscreen-btn svg {
+            width: 18px;
+            height: 18px;
+        }
+
+        /* --- [추가] 모바일 퀵 패널 열렸을 때 배경 스크롤 방지 --- */
+        body.no-scroll {
+            overflow: hidden;
+        }
+
+        /* --- [추가] 마우스 이벤트 비활성화 유틸리티 --- */
+        .pointer-events-none {
+            pointer-events: none;
+        }
+
+        /* --- [수정] 자동 높이 조절 textarea 스타일 --- */
+        .auto-height-textarea {
+            width: 100%;
+            padding: 8px;
+            border-radius: 6px;
+            border: 1px solid var(--input-border-color);
+            background-color: var(--section-bg);
+            color: var(--text-color);
+            font-family: inherit;
+            /* 부모 요소의 폰트 상속 */
+            font-size: inherit;
+            line-height: 1.5;
+            resize: none;
+            /* 사용자가 직접 크기 조절하는 핸들 숨김 */
+            overflow-y: hidden;
+            /* 스크롤바 숨김 (JS로 높이 조절) */
+            /* [추가] 이 클래스에만 자동 줄바꿈을 다시 활성화 */
+            white-space: pre-wrap;
+            /* [추가] 긴 단어가 영역을 벗어날 경우 강제로 줄바꿈 */
+            word-break: break-all;
+        }
+
+        /* [추가] 코드 블록 내 CodeMirror 에디터 스타일 */
+        .code-block-item .CodeMirror {
+            height: auto;
+            min-height: 80px;
+        }
+
+        .code-block-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .code-block-header .name {
+            font-weight: 600;
+        }
+
+        .code-block-actions button {
+            margin-left: 4px;
+        }
+
+        /* 변수 설정 영역에서 코드 블록 변수 그룹 스타일 */
+        .variable-group {
+            /* [수정] 테두리를 더 굵게 만들고, 모든 면에 점선이 적용되도록 border-style을 명시적으로 설정합니다. */
+            border: 2px dotted var(--border-color);
+            border-radius: 8px;
+            padding: 10px;
+            margin-bottom: 15px;
+        }
+
+        .variable-group-header {
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: var(--hint-color);
+            font-size: 14px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .variable-group-header .delete-block-btn {
+            font-size: 12px;
+            font-weight: normal;
+            color: var(--hint-color);
+            cursor: pointer;
+        }
+
+        .variable-group-header .delete-block-btn:hover {
+            color: #ef4444; /* red-500 */
+        }
+
+        /* 퀵 메뉴 구분선 스타일 */
+        .quick-menu-divider {
+            height: 1px;
+            background-color: var(--border-color);
+            margin: 10px 0;
+        }
+
+        /* 템플릿 내 코드 블록 삭제 버튼 */
+        .delete-block-in-template-btn {
+            color: #ef4444;
+            cursor: pointer;
+            font-weight: bold;
+            margin-left: 8px;
+        }
+
+        /* --- [추가] 코드 블록 모달 및 슬라이더 스타일 --- */
+        .slider-container {
+            overflow: visible; /* [수정] 패널이 잘리지 않도록 visible로 변경 */
+            width: 100%;
+        }
+
+        .slider-wrapper {
+            display: flex;
+            width: 300%; /* [수정] 3개의 패널에 맞게 너비 조정 */
+            transition: transform 0.4s ease-in-out;
+        }
+
+        .slider-panel {
+            width: 33.3333%; /* [수정] 3개의 패널에 맞게 너비 조정 */
+            padding: 0 5px;
+            box-sizing: border-box;
+            /* [추가] 활성화되지 않은 패널은 숨기고 높이를 0으로 만듭니다. */
+            /* [수정] 높이 전환에 delay를 주어 깜빡임 현상을 완화합니다. */
+            transition: opacity 0.3s ease-in-out, max-height 0.4s ease-in-out 0.1s;
+            opacity: 0;
+            max-height: 0;
+            overflow: hidden;
+        }
+        .slider-panel.active {
+            opacity: 1;
+            max-height: 60vh; /* 패널의 최대 높이를 충분히 확보합니다. */
+            overflow: visible;
+            transition-delay: 0s; /* 활성화될 때는 지연 없이 즉시 실행 */
+        }
+
+        /* [추가] 새 코드 블록 입력 컨테이너 스타일 */
+        #cb-new-block-input-container {
+            padding: 10px;
+            background-color: var(--bg-color);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            margin-top: 8px;
+        }
+
+
+
+        /* [추가] 커스텀 태그 템플릿 컨트롤 정렬 */
+        .tag-template-controls {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .slider-panel h5 {
+            margin-top: 0;
+            margin-bottom: 10px;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 8px;
+        }
+
+        #cb-modal-list, #cb-insert-list {
+            max-height: 250px;
+            overflow-y: auto;
+        }
+
+        .cb-list-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .cb-list-item:hover {
+            background-color: var(--bg-color);
+        }
+
+        .cb-list-item.selected {
+            background-color: #dbeafe;
+            border-color: #2563eb;
+        }
+
+        html[data-theme='dark'] .cb-list-item.selected {
+             background-color: #312e81;
+             border-color: #a5b4fc;
+        }
+
+        #cb-template-preview-wrapper .CodeMirror,
+        #cb-editor-wrapper .CodeMirror {
+            max-height: 300px;
+        }
+
+        /* [수정] 아이콘과 텍스트가 함께 있을 때를 위한 스타일 */
+        button[data-icon] {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px; /* 아이콘과 텍스트 사이 간격 */
+        }
+
+        /* [추가] data-icon을 사용하는 모든 버튼의 SVG 아이콘 크기를 설정합니다. */
+        button[data-icon] svg {
+            width: 18px;
+            height: 18px;
+        }
+
+        /* [추가] 텍스트가 없는 아이콘 전용 버튼의 크기를 고정합니다. */
+        button[data-icon]:not(:has(span)) {
+            width: 36px;
+            height: 36px;
+            padding: 0;
+            justify-content: center;
+        }
+
+
+        /* [추가] 태그 템플릿 저장/삭제 버튼의 아이콘 크기를 키웁니다. */
+        #saveTagTemplateBtn svg,
+        #deleteTagTemplateBtn svg {
+            width: 18px;
+            height: 18px;
+        }
+        /* --- [추가] 아이콘 버튼 스타일 (배경 없음) --- */
+        .icon-btn {
+            background: transparent;
+            border: none;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-color);
+            cursor: pointer;
+            position: relative;
+            overflow: hidden; /* 물결 효과를 위해 */
+            transition: background-color 0.2s;
+        }
+
+        .icon-btn:hover {
+            background-color: rgba(128, 128, 128, 0.1);
+        }
+
+        .icon-btn:active::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 100px;
+            height: 100px;
+            background-color: rgba(128, 128, 128, 0.2);
+            border-radius: 50%;
+            transform: translate(-50%, -50%) scale(0);
+            animation: ripple 0.6s linear;
+        }
+
+        @keyframes ripple {
+            to { transform: translate(-50%, -50%) scale(1); opacity: 0; }
+        }
+
+        /* --- [추가] CodeMirror 에디터 스타일 --- */
+        .CodeMirror {
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            /* [수정] height를 auto로 두면 내용에 따라 무한정 늘어나므로, min/max-height로 제어합니다. */
+            min-height: 120px;
+            max-height: 400px; /* 에디터의 최대 높이를 제한합니다. */
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+            font-size: 13px;
+            line-height: 1.5;
+            overflow: auto; /* [추가] 내용이 max-height를 초과할 경우 스크롤이 생기도록 합니다. */
+        }
+
+        .CodeMirror-focused {
+            border-color: #2563eb;
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
+        }
+
+        .CodeMirror-scroll {
+            min-height: 120px;
+        }
+
+        .CodeMirror-gutters {
+            background-color: var(--line-number-bg);
+            border-right: 1px solid var(--border-color);
+        }
+
+        .CodeMirror-linenumber {
+            color: var(--line-number-text);
+        }
+
+        /* 코드 블록 시각화 스타일 */
+        .cm-code-block-background {
+            /* [수정] 배경색을 더 뚜렷하게 변경하고, 왼쪽에 구분선을 추가하여 가독성을 높입니다. */
+            background-color: var(--bg-color); /* [수정] 세로 구분선과 패딩을 제거합니다. */
+
+        }
+
+        /* 코드 블록 주석 숨김 처리 */
+        .cm-hidden-comment {
+            display: none;
+        }
+
+        /* 다크 모드 CodeMirror 스타일 */
+        html[data-theme='dark'] .CodeMirror {
+            background-color: #1f2937;
+            color: #e5e7eb;
+        }
+
+        /* [추가] 초기화 모달 경고 아이콘 스타일 */
+        .warning-icon {
+            flex-shrink: 0;
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background-color: #fee2e2; /* red-100 */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .warning-icon svg {
+            width: 24px;
+            height: 24px;
+            color: #ef4444; /* red-500 */
+        }
