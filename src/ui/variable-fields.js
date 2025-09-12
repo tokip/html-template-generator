@@ -1,10 +1,11 @@
 import { variableConfigs, codeBlocks, syncGroups, syncColorMap, currentFilter, currentSort, setCurrentFilter, setCurrentSort, saveState, saveUiState, restoreUiState } from '../state.js';
-import { sanitizeId, escapeHTML } from '../utils.js';
+import { sanitizeId, escapeHTML, getDisplayVariableName } from '../utils.js';
 import { getEditorInstance } from './editor.js';
 import { triggerResultGeneration, processTemplateAndExtractVariables } from '../core.js';
 import { openCustomTagModal } from './modal.js';
 
 const textInputHistory = new WeakMap();
+let blockVarNames = new Set(); // [수정] 모듈 스코프로 이동
 
 function assignSyncGroupColors() {
     const currentValidGroups = new Map();
@@ -227,11 +228,35 @@ function renderVariableFields(variables) {
 
     assignSyncGroupColors();
     const blockVariables = getBlockVariables();
-    const blockVarNames = new Set();
+    blockVarNames.clear(); // [수정] 렌더링 시마다 Set을 초기화
     blockVariables.forEach(varSet => {
         varSet.forEach(varName => blockVarNames.add(varName));
     });
 
+    // [추가] 중복된 표시 이름을 가진 변수들을 찾아 색상을 할당합니다.
+    const duplicateColorMap = {};
+    const displayNameCounts = {};
+    variables.forEach(name => {
+        const displayName = getDisplayVariableName(name, blockVarNames);
+        displayNameCounts[displayName] = (displayNameCounts[displayName] || 0) + 1;
+    });
+
+    const duplicateDisplayNames = Object.keys(displayNameCounts).filter(name => displayNameCounts[name] > 1);
+    if (duplicateDisplayNames.length > 0) {
+        const colors = ['#e11d48', '#db2777', '#9333ea', '#6d28d9', '#4f46e5', '#2563eb', '#0284c7', '#0d9488', '#15803d', '#65a30d', '#ca8a04', '#d97706', '#ea580c'];
+        let colorIndex = 0;
+        duplicateDisplayNames.forEach(displayName => {
+            variables.forEach(fullName => {
+                if (getDisplayVariableName(fullName, blockVarNames) === displayName) {
+                    duplicateColorMap[fullName] = colors[colorIndex % colors.length];
+                }
+            });
+            colorIndex++;
+        });
+    }
+
+    // [수정] core.js에서 변수 목록이 정리되었으므로, 이제 간단히 분류할 수 있습니다.
+    // [수정] 이름 대신, blockVariables Map을 기준으로 일반 변수를 명확히 필터링합니다.
     const regularVariables = variables.filter(name => !blockVarNames.has(name));
 
     const renderVariables = (vars, parent) => {
@@ -239,7 +264,7 @@ function renderVariableFields(variables) {
             if (!variableConfigs[name]) {
                 variableConfigs[name] = { mode: 'text', options: [], default: '', syncWith: [] };
             }
-            const field = createVariableField(name, variableConfigs[name]);
+            const field = createVariableField(name, variableConfigs[name], duplicateColorMap[name]);
             parent.appendChild(field);
         });
     };
@@ -310,10 +335,11 @@ function renderVariableFields(variables) {
             toc.innerHTML = `<span class="hint">"${currentFilter}" 필터에 해당하는 변수가 없습니다.</span>`;
         }
 
+        // [수정] 필터링된 전체 변수 목록을 사용하되, 표시 이름은 짧게 하여 중복 문제를 해결합니다.
         variables.forEach(name => {
             const link = document.createElement('a');
             link.href = `#var-field-${sanitizeId(name)}`;
-            link.textContent = name;
+            link.textContent = getDisplayVariableName(name, blockVarNames); // [수정] 짧은 이름 표시
             toc.appendChild(link);
         });
 
@@ -398,19 +424,22 @@ function renderVariableFields(variables) {
         const blockName = codeBlocks[blockId]?.name || blockId;
         const group = document.createElement('div');
         group.className = 'variable-group';
+        group.id = `variable-group-${sanitizeId(blockId)}`; // [추가] 목차에서 링크할 ID
         group.innerHTML = `
             <div class="variable-group-header">
                 <span>코드 블록: ${escapeHTML(blockName)}</span>
             </div>
         `;
-        const sortedVars = Array.from(varSet).sort();
+        // [수정] core.js에서 변수 목록이 정리되었으므로, 전달받은 varSet을 바로 사용합니다.
+        const sortedVars = Array.from(varSet).filter(v => variables.includes(v)).sort((a, b) => a.localeCompare(b, 'ko', { numeric: true }));
         
         // 그룹 내 변수들을 렌더링하여 그룹에 추가
         const varContainer = document.createElement('div');
         renderVariables(sortedVars, varContainer);
         group.appendChild(varContainer);
 
-        if (varSet.size > 0) {
+        // [수정] 그룹 내에 렌더링할 변수가 있을 때만 그룹을 추가합니다.
+        if (sortedVars.length > 0) {
             container.appendChild(group);
         }
     });
@@ -431,13 +460,19 @@ function renderVariableFields(variables) {
     }
 }
 
-function createVariableField(name, cfg) {
+function createVariableField(name, cfg, duplicateColor) {
     const field = document.createElement('details');
     field.className = 'field';
     field.id = `var-field-${sanitizeId(name)}`;
 
+    // [추가] 중복 이름 하이라이트 적용
+    if (duplicateColor) {
+        field.classList.add('duplicate-variable-highlight');
+        field.style.setProperty('--duplicate-color', duplicateColor);
+    }
+
     const label = document.createElement('summary');
-    label.textContent = name;
+    label.textContent = getDisplayVariableName(name, blockVarNames); // [수정] 짧은 이름 표시
     const modeTag = document.createElement('span');
     modeTag.style.cssText = 'font-size: 11px; font-weight: normal; padding: 2px 6px; border-radius: 4px; margin-left: 8px; vertical-align: middle;';
 
@@ -561,10 +596,22 @@ function createVariableField(name, cfg) {
 }
 
 function createModeSelector(name, cfg) {
+    const wrapper = document.createElement('div');
+    const selectId = `mode-select-${sanitizeId(name)}`;
+
+    const label = document.createElement('label');
+    label.htmlFor = selectId;
+    label.className = 'visually-hidden';
+    label.textContent = `${name} 변수 타입 선택`;
+
     const sel = document.createElement('select');
+    sel.id = selectId;
     sel.innerHTML = `<option value="text">텍스트 입력</option><option value="dropdown">드롭다운</option>`;
     sel.value = cfg.mode;
     return sel;
+
+    wrapper.append(label, sel);
+    return wrapper;
 }
 
 function createTextInput(name, cfg) {
@@ -572,12 +619,18 @@ function createTextInput(name, cfg) {
     wrap.style.marginTop = '8px';
     wrap.style.display = cfg.mode === 'text' ? 'block' : 'none';
 
+    
     const input = document.createElement('textarea');
     input.className = 'auto-height-textarea';
     input.id = sanitizeId(name) + '_text';
     input.placeholder = name + ' 값 입력';
     input.value = cfg.default || '';
     input.rows = 1;
+
+    const label = document.createElement('label');
+    label.htmlFor = input.id;
+    label.className = 'visually-hidden';
+    label.textContent = `${name} 값 입력`;
 
     const autoResizeTextarea = (el) => {
         el.style.height = 'auto';
@@ -607,10 +660,10 @@ function createTextInput(name, cfg) {
     const toolbar = document.createElement('div');
     toolbar.className = 'text-format-toolbar';
     toolbar.innerHTML = `
-        <button data-tag="b" title="굵게 (Ctrl+B)">B</button>
-        <button data-tag="i" title="기울임 (Ctrl+I)">I</button>
-        <button data-tag="a" title="링크 삽입">Link</button>
-        <button data-tag="custom" title="커스텀 태그">Custom</button>
+        <button name="format-bold" data-tag="b" title="굵게 (Ctrl+B)">B</button>
+        <button name="format-italic" data-tag="i" title="기울임 (Ctrl+I)">I</button>
+        <button name="format-link" data-tag="a" title="링크 삽입">Link</button>
+        <button name="format-custom" data-tag="custom" title="커스텀 태그">Custom</button>
     `;
 
     toolbar.addEventListener('click', (e) => {
@@ -631,6 +684,7 @@ function createTextInput(name, cfg) {
         autoResizeTextarea(input);
     });
     wrap.append(input, toolbar);
+    wrap.append(label, input, toolbar);
     return wrap;
 }
 
@@ -692,10 +746,12 @@ function createDropdownControls(name, cfg) {
 
     const newOptNameInput = document.createElement('input');
     newOptNameInput.type = 'text';
+    newOptNameInput.id = `new-opt-name-${sanitizeId(name)}`; // [추가] 고유 ID 부여
     newOptNameInput.placeholder = '옵션 이름 (보여주기용)';
 
     const newOptValueInput = document.createElement('input');
     newOptValueInput.type = 'text';
+    newOptValueInput.id = `new-opt-value-${sanitizeId(name)}`; // [추가] 고유 ID 부여
     newOptValueInput.placeholder = '옵션 값 (실제 값)';
 
     const addBtn = document.createElement('button');
@@ -774,9 +830,9 @@ function createSyncSelector(currentVarName, cfg) {
     wrapper.className = 'sync-checkbox-wrapper';
     wrapper.style.display = cfg.mode === 'dropdown' ? 'block' : 'none';
 
-    const titleLabel = document.createElement('label');
+    const titleLabel = document.createElement('span'); // [수정] label 대신 span 태그를 사용하여 접근성 경고를 해결합니다.
     titleLabel.textContent = '옵션 동기화';
-    titleLabel.style.fontSize = '13px';
+    titleLabel.style.fontSize = '13px'; // 스타일은 그대로 유지합니다.
     titleLabel.style.color = 'var(--hint-color)';
 
     const listContainer = document.createElement('div');
@@ -804,6 +860,7 @@ function createSyncSelector(currentVarName, cfg) {
             checkbox.value = otherName;
             checkbox.checked = cfg.syncWith && cfg.syncWith.includes(otherName);
 
+            label.htmlFor = checkboxId; // [수정] label과 input을 명시적으로 연결합니다.
             const otherSyncGroupKey = (syncColorMap[otherName] || {}).key;
             if (currentSyncGroupKey && otherSyncGroupKey && otherSyncGroupKey !== currentSyncGroupKey) {
                 checkbox.disabled = true;

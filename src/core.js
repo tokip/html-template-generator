@@ -22,12 +22,28 @@ export function processTemplateAndExtractVariables() {
         }
     });
 
-    const newVariables = Array.from(newVars);
-    setTemplateOrder(newVariables);
-    const oldVariables = Object.keys(variableConfigs);
+    // [수정] 코드 블록 템플릿에만 존재하는 변수는 최종 변수 목록에서 제외합니다.
+    const allBlockTemplateVars = new Set();
+    Object.values(codeBlocks).forEach(block => {
+        re.lastIndex = 0;
+        while ((m = re.exec(block.template)) !== null) {
+            allBlockTemplateVars.add(m[1]);
+        }
+    });
 
-    const added = newVariables.filter(v => !oldVariables.includes(v));
-    const removed = oldVariables.filter(v => !newVariables.includes(v));
+    // [추가] 일반 템플릿에만 있는 변수도 추출합니다.
+    const mainTemplateOnlyVars = new Set();
+    re.lastIndex = 0;
+    while ((m = re.exec(tpl)) !== null) {
+        mainTemplateOnlyVars.add(m[1]);
+    }
+
+    const finalVariables = Array.from(newVars).filter(v => !allBlockTemplateVars.has(v) || mainTemplateOnlyVars.has(v) || v.includes('_instance_'));
+
+    setTemplateOrder(finalVariables);
+    const oldVariables = Object.keys(variableConfigs);
+    const added = finalVariables.filter(v => !oldVariables.includes(v));
+    const removed = oldVariables.filter(v => !finalVariables.includes(v));
 
     const RENAME_CONFIRM_EL = document.getElementById('renameConfirm');
     RENAME_CONFIRM_EL.style.display = 'none';
@@ -36,6 +52,15 @@ export function processTemplateAndExtractVariables() {
     // 변수가 하나 추가되고 하나 삭제된 경우, 이름 변경으로 간주하고 사용자에게 확인을 요청합니다.
     if (added.length === 1 && removed.length === 1) {
         const from = removed[0], to = added[0];
+
+        // [추가] 이름 변경 시에도 예약된 형식의 이름은 사용할 수 없도록 검증합니다.
+        if (to.startsWith('block_') && to.includes('_instance_')) {
+            showToast(`'${to}'와 같은 형식의 이름은 코드 블록을 위해 예약되어 있어 사용할 수 없습니다.`, 'error', 5000);
+            const editor = getEditorInstance();
+            editor.setValue(editor.getValue().replace(`{{${to}}}`, `{{INVALID_VAR_${to}}}`));
+            return; // 이름 변경 프로세스를 중단합니다.
+        }
+
         RENAME_CONFIRM_EL.innerHTML = `변수명이 <code>${escapeHTML(from)}</code>에서 <code>${escapeHTML(to)}</code>(으)로 변경되었나요?
         <button id="renameYes">네, 설정 유지</button> <button id="renameNo" class="secondary">아니요</button>`;
         RENAME_CONFIRM_EL.style.display = 'block';
@@ -44,7 +69,7 @@ export function processTemplateAndExtractVariables() {
             variableConfigs[to] = variableConfigs[from];
             delete variableConfigs[from];
             RENAME_CONFIRM_EL.style.display = 'none';
-            applyFilterAndSort(newVariables);
+            applyFilterAndSort(finalVariables);
             saveState();
         };
         document.getElementById('renameNo').onclick = () => {
@@ -53,7 +78,7 @@ export function processTemplateAndExtractVariables() {
                 if (!variableConfigs[v]) variableConfigs[v] = { mode: 'text', options: [], default: '', syncWith: [] };
             });
             RENAME_CONFIRM_EL.style.display = 'none';
-            applyFilterAndSort(newVariables);
+            applyFilterAndSort(finalVariables);
             saveState();
         };
     } else {
@@ -66,8 +91,17 @@ export function processTemplateAndExtractVariables() {
         added.forEach(v => {
             if (!newConfigs[v]) newConfigs[v] = { mode: 'text', options: [], default: '', syncWith: [] };
         });
+        // [수정] newConfigs에 변수를 먼저 추가한 후, 유효성 검사를 통해 잘못된 변수를 제거합니다.
+        Object.keys(newConfigs).forEach(v => {
+            if (v.startsWith('block_') && v.includes('_instance_')) {
+                showToast(`'${v}'와 같은 형식의 이름은 코드 블록을 위해 예약되어 있어 사용할 수 없습니다.`, 'error', 5000);
+                const editor = getEditorInstance();
+                editor.setValue(editor.getValue().replace(`{{${v}}}`, `{{INVALID_VAR_${v}}}`));
+                delete newConfigs[v]; // [추가] newConfigs에서 잘못된 변수를 제거합니다.
+            }
+        });
         setVariableConfigs(newConfigs);
-        applyFilterAndSort(newVariables);
+        applyFilterAndSort(finalVariables);
         if (changed || added.length > 0) {
             saveState();
         }
@@ -75,7 +109,7 @@ export function processTemplateAndExtractVariables() {
 
     // UI 업데이트가 필요하다는 신호를 보냅니다.
     // detail 객체를 통해 어떤 종류의 업데이트인지 정보를 전달할 수 있습니다.
-    const event = new CustomEvent('uiNeedsUpdate', { detail: { source: 'processTemplate', variableCount: newVariables.length, oldVarCount: oldVarCount } });
+    const event = new CustomEvent('uiNeedsUpdate', { detail: { source: 'processTemplate', variableCount: finalVariables.length, oldVarCount: oldVarCount } });
     document.dispatchEvent(event);
 }
 

@@ -177,6 +177,13 @@
             margin-bottom: 10px;
         }
 
+        /* [추가] 중복된 변수 이름 하이라이트 스타일 */
+        .duplicate-variable-highlight {
+            border-left: 4px solid var(--duplicate-color, transparent);
+            transition: border-color 0.3s;
+        }
+
+
         label {
             font-weight: 600;
             margin-bottom: 6px;
@@ -416,6 +423,7 @@
             padding: 4px 8px;
             border-radius: 6px;
             font-size: 13px;
+            word-break: break-all; /* [추가] 목차의 긴 링크가 줄바꿈되도록 설정 */
         }
 
         details.field {
@@ -432,6 +440,7 @@
             cursor: pointer;
             font-weight: 600;
             list-style: none;
+            word-break: break-all; /* [추가] 긴 변수 이름이 줄바꿈되도록 설정 */
             /* [추가] 기본 화살표(마커) 숨기기 */
         }
 
@@ -1046,32 +1055,25 @@
             padding: 12px;
             overflow-y: auto;
             flex-grow: 1;
+            /* [추가] 간략히/크게 보기 모두에서 Grid 레이아웃을 사용하여 정렬을 맞춥니다. */
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 2fr auto;
+            align-items: start;
+            gap: 8px 12px;
         }
 
         /* [추가] 펼쳐졌을 때 콘텐츠 영역을 Grid 컨테이너로 사용 */
-        #quick-menu-panel.is-expanded #quick-menu-content {
-            display: grid;
-            grid-template-columns: minmax(0, 1fr) 2fr auto;
-            /* [수정] 레이블(1fr), 입력(2fr), 링크(auto) 비율로 유연하게 너비 조절 */
-            align-items: start;
-            /* [수정] 모든 항목을 위쪽 기준으로 정렬하여 수직 정렬을 맞춥니다. */
-            gap: 8px 12px;
-            /* 세로 8px, 가로 12px 간격 */
-        }
+        /* #quick-menu-panel.is-expanded #quick-menu-content { ... } 이 부분은 위로 통합되었습니다. */
 
         .quick-menu-item {
-            display: flex;
-            align-items: start;
-            /* [수정] 간략히 보기에서도 위쪽 기준으로 정렬 */
-            gap: 8px;
-            margin-bottom: 10px;
+            /* [수정] 자식 요소들이 부모 Grid에 직접 속하도록 항상 contents로 설정합니다. */
+            display: contents;
         }
 
-        /* [추가] 퀵 메뉴가 펼쳐졌을 때, 레이블의 너비 제한을 해제 */
-        #quick-menu-panel.is-expanded .quick-menu-item {
-            /* [수정] 자식 요소들이 부모 Grid에 직접 속하도록 설정합니다. */
-            /* labelContainer는 Grid의 아이템으로 남기고, 그 안의 요소들은 flex로 정렬됩니다. */
-            display: contents; 
+        /* [추가] 가상 스크롤을 위한 플레이스홀더 스타일 */
+        .quick-menu-item-placeholder {
+            grid-column: 1 / -1; /* 그리드의 모든 열을 차지 */
+            margin-bottom: 10px;
         }
 
         #quick-menu-panel.is-expanded .quick-menu-item label,
@@ -1085,18 +1087,35 @@
             min-width: 0; /* flex/grid 아이템이 넘치는 것을 방지 */
         }
 
+        /* [추가] 그림자 효과를 위한 래퍼 스타일 */
+        .scroll-shadow-wrapper {
+            position: relative;
+            grid-column: 1;
+        }
+
+        .label-container {
+            grid-column: 1;
+            min-width: 0; /* flex/grid 아이템이 넘치는 것을 방지 */
+        }
+
         /* [추가] 점과 레이블을 감싸는 컨테이너 스타일 */
         .quick-menu-label-wrapper {
-            display: flex;
+            display: inline-flex; /* [수정] 내용물 너비만큼만 차지하도록 변경 */
             align-items: center;
             padding-top: 6px;
             /* [추가] 입력 상자와의 세로 정렬을 위해 래퍼에 패딩 적용 */
             gap: 6px;
             /* 점과 레이블 사이의 간격 */
-            overflow-x: auto;
-            /* [수정] 스크롤 가능하도록 auto로 변경 */
             user-select: none;
-            /* [추가] 드래그 중 텍스트 선택 방지 */
+        }
+
+        /* [수정] '간략히 보기' 모드에서 변수명 너비 설정 (약 5글자) */
+        .quick-menu-item .label-container {
+            max-width: 80px; /* [수정] 고정 너비 대신 최대 너비 설정 */
+            flex-shrink: 0; /* 너비가 줄어들지 않도록 고정 */
+            overflow-x: auto; /* [추가] 이 컨테이너에서 직접 스크롤 처리 */
+            padding-right: 10px; /* [추가] 오른쪽 그림자가 표시될 공간 확보 */
+            /* [추가] 스크롤바 숨김 스타일을 이 컨테이너로 이동 */
             -ms-overflow-style: none;
             /* IE and Edge */
             scrollbar-width: none;
@@ -1104,20 +1123,13 @@
         }
 
         /* [추가] 스크롤바 숨기기 (Chrome, Safari, Opera) */
-        .quick-menu-label-wrapper::-webkit-scrollbar {
+        .quick-menu-item .label-container::-webkit-scrollbar {
             display: none;
-        }
-
-        /* [수정] '간략히 보기' 모드에서 변수명 너비 설정 (약 5글자) */
-        .quick-menu-item .label-container {
-            position: relative; /* 그림자 효과를 위한 position */
-            width: 80px;
-            flex-shrink: 0; /* 너비가 줄어들지 않도록 고정 */
         }
 
         /* [수정] '크게 보기' 모드에서 변수명 너비 설정 (약 10글자) */
         #quick-menu-panel.is-expanded .quick-menu-item .label-container {
-            width: 120px;
+            max-width: 120px; /* [수정] 고정 너비 대신 최대 너비 설정 */
         }
 
         /* [수정] 변수명 레이블 스타일 */
@@ -1130,51 +1142,52 @@
             text-overflow: clip; /* 말줄임표 제거 */
             flex-shrink: 0; /* 스크롤을 위해 줄어들지 않도록 설정 */
         }
-
-        .label-container::before,
-        .label-container::after {
+        
+        /* [수정] 그림자 효과를 스크롤 컨테이너의 부모인 래퍼에 적용합니다. */
+        .scroll-shadow-wrapper::before,
+        .scroll-shadow-wrapper::after {
             content: '';
             position: absolute;
             top: 0;
             bottom: 0;
-            width: 15px;
+            width: 10px; /* [수정] 그림자 너비를 약간 줄여 공간 확보 */
             pointer-events: none;
             /* 그림자가 클릭을 방해하지 않도록 */
             transition: opacity 0.2s;
-            z-index: 1;
+            z-index: 2; /* [수정] 스크롤되는 내용물보다 위에 오도록 z-index 조정 */
             /* [추가] 레이블 위에 그림자가 오도록 설정 */
         }
-
-        .label-container::before {
+        
+        .scroll-shadow-wrapper::before {
             left: 0;
             background: linear-gradient(to right, var(--section-bg), transparent);
             opacity: 0;
         }
-
-        .label-container::after {
+        
+        .scroll-shadow-wrapper::after {
             right: 0;
             background: linear-gradient(to left, var(--section-bg), transparent);
             opacity: 0;
         }
-
-        .label-container.scroll-start::before {
+        
+        .scroll-shadow-wrapper.scroll-start::before {
             opacity: 0;
         }
-
-        .label-container.scroll-start::after {
+        
+        .scroll-shadow-wrapper.scroll-start::after {
             opacity: 1;
         }
-
-        .label-container.scroll-middle::before,
-        .label-container.scroll-middle::after {
+        
+        .scroll-shadow-wrapper.scroll-middle::before,
+        .scroll-shadow-wrapper.scroll-middle::after {
             opacity: 1;
         }
-
-        .label-container.scroll-end::before {
+        
+        .scroll-shadow-wrapper.scroll-end::before {
             opacity: 1;
         }
-
-        .label-container.scroll-end::after {
+        
+        .scroll-shadow-wrapper.scroll-end::after {
             opacity: 0;
         }
 
@@ -1191,6 +1204,11 @@
 
         .quick-menu-item .input-control {
             flex-grow: 1;
+            grid-column: 2; /* [추가] 간략히 보기 모드에서도 Grid의 두 번째 열을 차지하도록 설정 */
+        }
+
+        .quick-menu-item a {
+            grid-column: 3; /* [추가] 간략히 보기 모드에서도 Grid의 세 번째 열을 차지하도록 설정 */
         }
 
         .quick-menu-item a {

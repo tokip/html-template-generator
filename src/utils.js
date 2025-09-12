@@ -1,3 +1,18 @@
+/**
+ * [추가] 코드 블록 변수 이름에서 접두사를 제거하고 순수한 변수명만 반환합니다.
+ * @param {string} fullName - 전체 변수 이름 (예: block_123_instance_456_varName)
+ * @param {Set<string>} [blockVarNames] - 실제 코드 블록 변수 이름의 Set. 이 값이 제공되면, fullName이 Set에 포함된 경우에만 접두사를 제거합니다.
+ * @returns {string} - 순수 변수 이름 (예: varName)
+ */
+export function getDisplayVariableName(fullName, blockVarNames) {
+    // [수정] 이름 패턴 매칭 대신, 신뢰할 수 있는 출처 정보(blockVarNames)를 기반으로 접두사를 제거합니다.
+    if (blockVarNames && blockVarNames.has(fullName)) {
+        const parts = fullName.split('_instance_');
+        return parts.length > 1 ? parts[1].split('_').slice(1).join('_') : fullName;
+    }
+    return fullName;
+}
+
 export function sanitizeId(name) {
     // 한글 등 멀티바이트 문자를 안전하게 ID로 변환
     return 'id_' + Array.from(name).map(char => char.charCodeAt(0).toString(16)).join('');

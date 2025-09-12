@@ -1,5 +1,5 @@
 import { variableConfigs, codeBlocks, syncColorMap, saveState, templateOrder } from '../state.js';
-import { sanitizeId, escapeHTML } from '../utils.js';
+import { sanitizeId, escapeHTML, getDisplayVariableName } from '../utils.js';
 import { getEditorInstance } from './editor.js';
 import { triggerResultGeneration } from '../core.js';
 import { lockBodyScroll, unlockBodyScroll } from './dom-helpers.js';
@@ -95,15 +95,71 @@ export function renderQuickMenu() {
         }
     }
 
-    const regularVars = templateOrder.filter(name => variableConfigs[name] && !blockVarInstances.has(name) && !name.includes('_instance_'));
-    const blockVars = templateOrder.filter(name => blockVarInstances.has(name));
+    // [수정] core.js에서 변수 목록이 정리되었으므로, 이제 간단히 분류할 수 있습니다.
+    // [수정] 이름 대신, blockVarInstances Set을 기준으로 일반 변수를 명확히 필터링합니다.
+    const regularVars = templateOrder.filter(name => variableConfigs[name] && !blockVarInstances.has(name));
+    const blockVars = templateOrder.filter(name => variableConfigs[name] && blockVarInstances.has(name));
+    // [수정] 중복 색상 계산을 위해 정렬되지 않은 원본 순서를 사용합니다.
+    const allVisibleVars = templateOrder.filter(name => variableConfigs[name]);
+
+    // [추가] 중복된 표시 이름을 가진 변수들을 찾아 색상을 할당합니다.
+    const duplicateColorMap = {};
+    const displayNameCounts = {};
+    // allVisibleVars는 정렬되지 않은 상태여야 중복 색상 할당이 일관됩니다.
+    allVisibleVars.forEach(name => {
+        const displayName = getDisplayVariableName(name);
+        displayNameCounts[displayName] = (displayNameCounts[displayName] || 0) + 1;
+    });
+
+    const duplicateDisplayNames = Object.keys(displayNameCounts).filter(name => displayNameCounts[name] > 1);
+    if (duplicateDisplayNames.length > 0) {
+        const colors = ['#e11d48', '#db2777', '#9333ea', '#6d28d9', '#4f46e5', '#2563eb', '#0284c7', '#0d9488', '#15803d', '#65a30d', '#ca8a04', '#d97706', '#ea580c'];
+        let colorIndex = 0;
+        duplicateDisplayNames.forEach(displayName => {
+            allVisibleVars.forEach(fullName => {
+                if (getDisplayVariableName(fullName) === displayName) {
+                    duplicateColorMap[fullName] = colors[colorIndex % colors.length];
+                }
+            });
+            colorIndex++;
+        });
+    }
 
     if (regularVars.length === 0 && blockVars.length === 0) {
         contentContainer.innerHTML = `<span class="hint" style="padding: 0 12px;">템플릿에 변수가 없습니다.</span>`;
         return;
     }
 
-    const createMenuItem = (name) => {
+    // [추가] 가상 스크롤을 위한 Intersection Observer 설정
+    const observer = new IntersectionObserver((entries, obs) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                const placeholder = entry.target;
+                const varName = placeholder.dataset.varName;
+                if (varName) {
+                    const menuItem = createMenuItem(varName);
+                    // [수정] menuItem이 유효한 Node일 때만 교체 작업을 수행합니다.
+                    if (menuItem) {
+                        placeholder.parentNode.replaceChild(menuItem, placeholder);
+                        obs.unobserve(menuItem); // 한 번 렌더링된 아이템은 더 이상 관찰하지 않음
+                    }
+                }
+            }
+        });
+    }, { root: contentContainer, rootMargin: "200px" }); // 화면에 보이기 200px 전에 미리 로드
+
+    const createPlaceholder = (name) => {
+        const placeholder = document.createElement('div');
+        placeholder.className = 'quick-menu-item-placeholder';
+        placeholder.dataset.varName = name;
+        // 높이를 실제 아이템과 유사하게 설정하여 스크롤바가 튀는 현상을 방지
+        const cfg = variableConfigs[name];
+        placeholder.style.height = (cfg && cfg.mode === 'text') ? '40px' : '40px'; // 모드에 따라 높이 조절 가능
+        contentContainer.appendChild(placeholder);
+        observer.observe(placeholder);
+    };
+
+    const createMenuItem = (name, isBlockVar = false) => {
         const cfg = variableConfigs[name];
         if (!cfg) return;
 
@@ -111,8 +167,11 @@ export function renderQuickMenu() {
         item.className = 'quick-menu-item';
 
         const label = document.createElement('label');
-        label.textContent = name;
+        label.textContent = getDisplayVariableName(name); // [수정] 짧은 이름 표시
         label.title = name;
+        // [추가] 접근성을 위해 label과 input/select를 연결합니다.
+        const inputId = `quick-menu-input-${sanitizeId(name)}`;
+        label.htmlFor = inputId;
 
         const labelWrapper = document.createElement('div');
         labelWrapper.className = 'quick-menu-label-wrapper';
@@ -129,22 +188,36 @@ export function renderQuickMenu() {
         labelContainer.className = 'label-container';
         labelContainer.appendChild(labelWrapper);
 
-        const updateScrollShadow = () => {
-            const el = labelWrapper;
-            const scrollable = el.scrollWidth > el.clientWidth;
+        // [추가] 그림자 효과를 위한 래퍼를 추가합니다.
+        const shadowWrapper = document.createElement('div');
+        shadowWrapper.className = 'scroll-shadow-wrapper';
+        shadowWrapper.appendChild(labelContainer);
 
+        // [수정] 중복 이름 하이라이트를 label-container에 적용합니다.
+        const duplicateColor = duplicateColorMap[name];
+        if (duplicateColor) {
+            shadowWrapper.classList.add('duplicate-variable-highlight'); // [수정] 하이라이트를 래퍼에 적용
+            // padding-left와 border-left가 겹치지 않도록 조정
+            shadowWrapper.style.setProperty('--duplicate-color', duplicateColor);
+        }
+
+        const updateScrollShadow = () => {
+            const el = labelContainer; // [수정] 스크롤 이벤트를 labelContainer에서 감지
+            const scrollable = el.scrollWidth > el.clientWidth;
             if (scrollable) {
                 const atStart = el.scrollLeft < 5;
                 const atEnd = el.scrollLeft > el.scrollWidth - el.clientWidth - 5;
 
-                labelContainer.classList.toggle('scroll-start', atStart && !atEnd);
-                labelContainer.classList.toggle('scroll-middle', !atStart && !atEnd);
-                labelContainer.classList.toggle('scroll-end', atEnd && !atStart);
+                el.classList.toggle('scroll-start', atStart && !atEnd);
+                el.classList.toggle('scroll-middle', !atStart && !atEnd);
+                el.classList.toggle('scroll-end', atEnd && !atStart);
+                // [수정] 그림자 클래스를 부모 래퍼에 적용합니다.
+                shadowWrapper.className = `scroll-shadow-wrapper ${el.classList.contains('scroll-start') ? 'scroll-start' : ''} ${el.classList.contains('scroll-middle') ? 'scroll-middle' : ''} ${el.classList.contains('scroll-end') ? 'scroll-end' : ''} ${duplicateColor ? 'duplicate-variable-highlight' : ''}`.trim();
             }
         };
 
         setTimeout(updateScrollShadow, 0);
-        labelWrapper.addEventListener('scroll', updateScrollShadow);
+        labelContainer.addEventListener('scroll', updateScrollShadow); // [수정] 스크롤 이벤트를 labelContainer에 연결
 
         const inputWrapper = document.createElement('div');
         inputWrapper.className = 'input-control';
@@ -152,6 +225,7 @@ export function renderQuickMenu() {
         if (cfg.mode === 'text') {
             const input = document.createElement('input');
             input.type = 'text';
+            input.id = inputId; // [추가] id 설정
             input.value = cfg.default || '';
             input.addEventListener('input', (e) => {
                 cfg.default = e.target.value;
@@ -166,7 +240,7 @@ export function renderQuickMenu() {
             inputWrapper.appendChild(input);
         } else { // dropdown
             const select = document.createElement('select');
-            select.id = `quick-menu-select-${sanitizeId(name)}`;
+            select.id = inputId; // [수정] id를 label.for와 일치시킵니다.
             cfg.options.forEach(opt => {
                 const optionEl = document.createElement('option');
                 optionEl.value = opt.value;
@@ -191,21 +265,23 @@ export function renderQuickMenu() {
         shortcutLink.title = `${name} 상세 설정으로 이동`;
         shortcutLink.innerHTML = '🔗';
 
-        item.appendChild(labelContainer);
+        item.appendChild(shadowWrapper); // [수정] 그림자 래퍼를 아이템에 추가합니다.
         item.appendChild(inputWrapper);
         item.appendChild(shortcutLink);
-        contentContainer.appendChild(item);
+        return item; // [수정] 생성된 아이템을 반환하여 가상 스크롤이 동작하도록 합니다.
     };
 
-    regularVars.forEach(createMenuItem);
+    // [수정] '변수 설정'과 동일하게, 일반 변수와 코드 블록 변수를 순서대로 렌더링합니다.
+    // [수정] 실제 아이템 대신 플레이스홀더를 먼저 렌더링합니다.
+    regularVars.forEach(name => createPlaceholder(name));
 
     if (regularVars.length > 0 && blockVars.length > 0) {
         const divider = document.createElement('div');
         divider.className = 'quick-menu-divider';
         contentContainer.appendChild(divider);
     }
-
-    blockVars.sort().forEach(createMenuItem);
+    // [수정] 화면에 표시할 때만 정렬합니다.
+    blockVars.sort((a, b) => a.localeCompare(b, 'ko', { numeric: true })).forEach(name => createPlaceholder(name));
 
     // 바로가기 링크 이벤트 위임
     contentContainer.addEventListener('click', (e) => {
@@ -406,10 +482,12 @@ export function setupQuickMenuInteractions(isMobileDevice, CACHED_ELEMENTS, FIXE
 
     let isDown = false, startX, scrollLeft, activeWrapper = null;
     const startDrag = (e) => {
-        const wrapper = e.target.closest('.quick-menu-label-wrapper');
+        // [수정] Grid 레이아웃에서도 이벤트를 감지할 수 있도록 .label-container를 기준으로 찾습니다.
+        const wrapper = e.target.closest('.label-container');
         if (!wrapper || wrapper.scrollWidth <= wrapper.clientWidth) return;
         isDown = true;
         activeWrapper = wrapper;
+        // activeWrapper는 이제 .label-container가 됩니다.
         startX = e.pageX || e.touches[0].pageX;
         scrollLeft = activeWrapper.scrollLeft;
         window.addEventListener('mousemove', doDrag);
@@ -420,7 +498,8 @@ export function setupQuickMenuInteractions(isMobileDevice, CACHED_ELEMENTS, FIXE
     const doDrag = (e) => {
         if (!isDown || !activeWrapper) return;
         e.preventDefault();
-        const x = e.pageX || e.touches[0].pageX;
+        // [수정] 마우스 이벤트와 터치 이벤트를 구분하여 처리합니다.
+        const x = e.type === 'touchmove' ? e.touches[0].pageX : e.pageX;
         const walk = (x - startX) * 1.5;
         activeWrapper.scrollLeft = scrollLeft - walk;
     };
