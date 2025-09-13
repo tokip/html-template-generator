@@ -2,6 +2,7 @@ import { variableConfigs, codeBlocks, syncGroups, syncColorMap, currentFilter, c
 import { sanitizeId, escapeHTML, getDisplayVariableName } from '../utils.js';
 import { getEditorInstance } from './editor.js';
 import { triggerResultGeneration, processTemplateAndExtractVariables } from '../core.js';
+import { updateCollapseUI } from './dom-helpers.js';
 import { openCustomTagModal } from './modal.js';
 
 const textInputHistory = new WeakMap();
@@ -365,12 +366,11 @@ function renderVariableFields(variables) {
                     }
                     if (targetElement.tagName === 'DETAILS') {
                         targetElement.open = true;
+                        updateCollapseUI(Object.keys(variableConfigs).length);
                     }
-                    // 스크롤 후 하이라이트 효과 적용
                     const observer = new IntersectionObserver((entries, obs) => {
                         entries.forEach(entry => {
                             if (entry.isIntersecting) {
-                                // [추가] 스크롤 시작과 함께 모든 변수 필드의 마우스 이벤트를 비활성화합니다.
                                 const fieldsContainer = document.getElementById('variableFields');
                                 if (fieldsContainer) fieldsContainer.classList.add('pointer-events-none');
 
@@ -963,11 +963,16 @@ function createSyncSelector(currentVarName, cfg) {
 function initializeDragAndDrop(chipsContainer, name, cfg, sel) {
     let draggedItem = null;
     let placeholder = null;
+    // [추가] 드래그 시작 시점의 요소 위치를 저장할 변수
+    let elementRects = [];
 
     chipsContainer.addEventListener('dragstart', (e) => {
         if (!e.target.classList.contains('chip')) return;
         draggedItem = e.target.closest('.chip');
         if (!draggedItem) return;
+
+        // [추가] 드래그가 시작될 때 모든 'chip' 요소의 위치와 크기 정보를 미리 계산하여 저장합니다.
+        elementRects = [...chipsContainer.querySelectorAll('.chip:not(.dragging)')].map(el => el.getBoundingClientRect());
 
         placeholder = document.createElement('span');
         placeholder.className = 'chip placeholder';
@@ -987,6 +992,7 @@ function initializeDragAndDrop(chipsContainer, name, cfg, sel) {
         }
         draggedItem = null;
         placeholder = null;
+        elementRects = []; // [추가] 드래그가 끝나면 저장된 위치 정보를 초기화합니다.
     });
 
     chipsContainer.addEventListener('dragover', (e) => {
@@ -995,7 +1001,8 @@ function initializeDragAndDrop(chipsContainer, name, cfg, sel) {
 
         const clientX = e.clientX || (e.touches && e.touches[0] ? e.touches[0].clientX : 0);
         const clientY = e.clientY || (e.touches && e.touches[0] ? e.touches[0].clientY : 0);
-        const afterElement = getDragAfterElement(chipsContainer, clientX, clientY);
+        // [수정] 드래그 중 실시간 위치 대신, 처음에 저장해둔 위치 정보(elementRects)를 사용하여 기준 요소를 찾습니다.
+        const afterElement = getDragAfterElement(chipsContainer, clientX, clientY, elementRects);
         if (afterElement == null) {
             chipsContainer.appendChild(placeholder);
         } else {
@@ -1023,25 +1030,28 @@ function initializeDragAndDrop(chipsContainer, name, cfg, sel) {
         }
     });
 
-    function getDragAfterElement(container, x, y) {
+    // [수정] 함수가 미리 계산된 위치 정보(rects)를 인자로 받도록 수정합니다.
+    function getDragAfterElement(container, x, y, rects) {
         const draggableElements = [...container.querySelectorAll('.chip:not(.dragging):not(.placeholder)')];
 
-        const closest = draggableElements.reduce((closest, child) => {
-            const box = child.getBoundingClientRect();
+        // [수정] reduce 로직을 rects 배열을 순회하도록 변경합니다.
+        const closest = rects.reduce((closest, box, index) => {
+            const child = draggableElements[index];
+            if (!child) return closest; // 요소가 없는 경우 건너뜁니다.
+
             const isInVerticalRange = y >= box.top && y <= box.bottom;
 
             if (isInVerticalRange) {
                 const offset = x - box.left - box.width / 2;
-                if (Math.abs(offset) < Math.abs(closest.offset)) {
+                if (offset < 0 && offset > closest.offset) { // [수정] 가장 가까운 '왼쪽' 요소를 찾습니다.
                     return { offset: offset, element: child };
                 }
             }
             return closest;
-        }, { offset: Number.POSITIVE_INFINITY, element: null });
+        }, { offset: Number.NEGATIVE_INFINITY, element: null });
 
-        if (closest.element === null) return null;
-
-        return closest.offset < 0 ? closest.element : closest.element.nextSibling;
+        // [수정] 찾은 요소(element)가 있으면 그 요소를, 없으면 null을 반환하여 마지막 위치에 추가되도록 합니다.
+        return closest.element;
     }
 }
 

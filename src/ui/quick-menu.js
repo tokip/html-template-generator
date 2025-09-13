@@ -256,6 +256,12 @@ export function renderQuickMenu() {
                 if (detailSelect) detailSelect.value = e.target.value;
 
                 syncDropdownSelection(name);
+                // [수정] 동기화된 다른 변수들의 퀵 메뉴 UI도 업데이트합니다.
+                const sourceConfig = variableConfigs[name];
+                sourceConfig.syncWith.forEach(targetVarName => {
+                    const quickMenuSelect = document.getElementById(`quick-menu-input-${sanitizeId(targetVarName)}`);
+                    if (quickMenuSelect) quickMenuSelect.value = variableConfigs[targetVarName].default;
+                });
                 saveState();
                 triggerResultGeneration();
             });
@@ -321,7 +327,7 @@ export function renderQuickMenu() {
 
             if (isCollapsed && getComputedStyle(targetElement).display === 'none') {
                 wrapper.classList.remove('is-collapsed');
-                updateCollapseUI(Object.keys(variableConfigs).length);
+                updateCollapseUI(Object.keys(variableConfigs).length); // [수정] 버튼 텍스트 업데이트
             }
 
             if (targetElement.tagName === 'DETAILS') targetElement.open = true;
