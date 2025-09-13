@@ -268,6 +268,14 @@
                                 <label for="autoTagExclusion">제외할 문자 (쉼표로 구분):</label>
                                 <input type="text" id="autoTagExclusion" placeholder="예: 제외, 단어">
                             </div>
+                            <!-- [추가] 키워드 대체 기능 UI -->
+                            <div class="settings-group grid-span-2">
+                                <label for="autoTagReplaceToggle" style="cursor:pointer;">
+                                    <input type="checkbox" id="autoTagReplaceToggle">
+                                    키워드 대체
+                                </label>
+                                <input type="text" id="autoTagReplaceKeyword" placeholder="대체할 키워드 입력" style="display: none; margin-top: 5px;">
+                            </div>
                         </div>
                     </details>
                     <div class="actions-right">

@@ -21,7 +21,9 @@ export let autoTaggingConfig = {
     keywords: '',
     regexPattern: '\\d+(?:\\.\\d+)?%',
     regexFlags: 'g',
-    exclusion: ''
+    exclusion: '',
+    replaceEnabled: false, // [추가] 키워드 대체 활성화 여부
+    replaceKeyword: '' // [추가] 대체할 키워드
 };
 export let syncColorMap = {};
 export let templateOrder = [];

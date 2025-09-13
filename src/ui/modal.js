@@ -26,6 +26,9 @@ const regexPatternInput = document.getElementById('autoTagRegexPattern');
 const regexTemplateSelect = document.getElementById('regexTemplateSelect');
 const regexHistoryDatalist = document.getElementById('regexHistoryDatalist');
 const regexFlagsInput = document.getElementById('autoTagRegexFlags');
+// [추가] 키워드 대체 UI 요소
+const autoTagReplaceToggle = document.getElementById('autoTagReplaceToggle');
+const autoTagReplaceKeywordInput = document.getElementById('autoTagReplaceKeyword');
 
 /**
  * [추가] 텍스트 서식 툴바를 생성하고 이벤트 리스너를 연결하는 헬퍼 함수.
@@ -151,6 +154,8 @@ function handleDocumentMouseDown(e) {
 function handleInsert() {
     const openTag = openTagInput.value;
     const closeTag = closeTagInput.value;
+    const replaceEnabled = autoTaggingConfig.replaceEnabled;
+    const replaceKeyword = autoTaggingConfig.replaceKeyword;
     let originalText = fullTextDisplay.textContent;
     let newText = originalText;
 
@@ -169,7 +174,7 @@ function handleInsert() {
                 if (exclusions.some(ex => match.includes(ex))) {
                     return match;
                 }
-                return `${openTag}${match}${closeTag}`;
+                return replaceEnabled ? replaceKeyword : `${openTag}${match}${closeTag}`;
             });
 
         } else { // 'regex' mode
@@ -185,7 +190,7 @@ function handleInsert() {
                     if (exclusions.length > 0 && exclusions.some(ex => match.includes(ex))) {
                         return match;
                     }
-                    return `${openTag}${match}${closeTag}`;
+                    return replaceEnabled ? replaceKeyword.replace('$0', match) : `${openTag}${match}${closeTag}`;
                 });
             } catch (e) {
                 alert(`잘못된 정규식입니다: ${e.message}`);
@@ -263,6 +268,8 @@ export function openCustomTagModal(inputElement) {
     fullTextDisplay.innerText = targetInputElement.value; // [보안 수정] XSS 방지를 위해 textContent 대신 innerText 사용
     autoTagToggle.checked = autoTaggingConfig.enabled;
     exclusionInput.value = autoTaggingConfig.exclusion;
+    autoTagReplaceToggle.checked = autoTaggingConfig.replaceEnabled;
+    autoTagReplaceKeywordInput.value = autoTaggingConfig.replaceKeyword;
 
     const modeRadioToSelect = document.querySelector(`input[name="autoTagMode"][value="${autoTaggingConfig.mode}"]`);
     if (modeRadioToSelect) modeRadioToSelect.checked = true;
@@ -272,6 +279,7 @@ export function openCustomTagModal(inputElement) {
     regexFlagsInput.value = autoTaggingConfig.regexFlags;
 
     updateModeUI();
+    updateReplaceUI();
 
     regexHistoryDatalist.innerHTML = '';
     autoTaggingConfig.history.forEach(item => {
@@ -464,6 +472,11 @@ function updateModeUI() {
     regexSettings.style.display = isKeywordMode ? 'none' : 'block';
 }
 
+function updateReplaceUI() {
+    autoTagReplaceKeywordInput.style.display = autoTagReplaceToggle.checked ? 'block' : 'none';
+    openTagInput.closest('div').style.display = autoTagReplaceToggle.checked ? 'none' : 'block';
+    closeTagInput.closest('div').style.display = autoTagReplaceToggle.checked ? 'none' : 'block';
+}
 export function setupAutoTagSettings() {
     const insertBtn = document.getElementById('insertCustomTagBtn');
 
@@ -474,12 +487,14 @@ export function setupAutoTagSettings() {
         autoTaggingConfig.keywords = keywordsInput.value;
         autoTaggingConfig.regexPattern = regexPatternInput.value;
         autoTaggingConfig.regexFlags = regexFlagsInput.value;
+        autoTaggingConfig.replaceEnabled = autoTagReplaceToggle.checked;
+        autoTaggingConfig.replaceKeyword = autoTagReplaceKeywordInput.value;
 
         insertBtn.textContent = autoTagToggle.checked ? '자동 태그 적용' : '태그 삽입';
         saveState();
     };
 
-    [autoTagToggle, exclusionInput, keywordsInput, regexPatternInput, regexFlagsInput].forEach(el => {
+    [autoTagToggle, exclusionInput, keywordsInput, regexPatternInput, regexFlagsInput, autoTagReplaceToggle, autoTagReplaceKeywordInput].forEach(el => {
         el.addEventListener('input', updateConfig);
         el.addEventListener('change', updateConfig);
     });
@@ -487,6 +502,10 @@ export function setupAutoTagSettings() {
         updateConfig();
         updateModeUI(); // [추가] 모드 변경 시 UI를 즉시 업데이트합니다.
     }));
+    autoTagReplaceToggle.addEventListener('change', () => {
+        updateConfig();
+        updateReplaceUI();
+    });
 
     regexTemplateSelect.addEventListener('change', (e) => {
         const [pattern, flags] = e.target.value.split('::');
