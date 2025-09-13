@@ -1,7 +1,7 @@
 import { processTemplateAndExtractVariables, generateResult, triggerResultGeneration } from './core.js';
 import { exportToJson, importFromJson, saveState, setTheme, currentTheme, variableConfigs, codeBlocks, setCodeBlocks, setVariableConfigs, setSyncGroups, setSyncColorMap, setTemplateOrder, setCurrentFilter, setCurrentSort } from './state.js';
 import { doBeautify, debounce, loadIcon, showToast, escapeHTML } from './utils.js';
-import { updateCollapseUI, lockBodyScroll, unlockBodyScroll } from './ui/dom-helpers.js';
+import { updateCollapseUI, lockBodyScroll, unlockBodyScroll, setIcon } from './ui/dom-helpers.js';
 import { manageTocCollapse } from './ui/variable-fields.js';
 import { renderQuickMenu, adjustQuickMenuPosition, toggleQuickMenu, setupQuickMenuInteractions } from './ui/quick-menu.js';
 import { setupMaximizeMode } from './ui/maximize.js';
@@ -14,14 +14,14 @@ export async function setupEventListeners(CACHED_ELEMENTS) {
     const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
     let lastWindowWidth = window.innerWidth;
 
-    // [수정] 아이콘 로드를 먼저 완료한 후 이벤트 리스너를 설정하여, 리스너가 누락되는 문제를 방지합니다.
-    const iconButtons = document.querySelectorAll('button[data-icon]:not(#theme-toggle)');
-    await Promise.all(Array.from(iconButtons).map(async (button) => {
-        await loadIcon(button.dataset.icon, { target: button });
-    }));
+    // [수정] 아이콘 로드 로직을 단순화하고 중앙에서 관리합니다.
+    // setIcon 함수는 내부적으로 loadIcon을 호출하며, 아이콘을 버튼 내부에 삽입합니다.
+    await Promise.all([
+        ...Array.from(document.querySelectorAll('button[data-icon]:not(#theme-toggle)')).map(btn => setIcon(btn, btn.dataset.icon)),
+    ]);
     // [추가] 초기화 모달의 경고 아이콘을 미리 로드합니다.
     const warningIconContainer = document.getElementById('reset-warning-icon-container');
-    if (warningIconContainer) await loadIcon('alert-triangle', { target: warningIconContainer });
+    if (warningIconContainer) await setIcon(warningIconContainer, 'alert-triangle');
 
     document.getElementById('extractBtn').addEventListener('click', () => {
         processTemplateAndExtractVariables(); // [수정] '변수 추출' 시에도 유효성 검사를 실행합니다.
@@ -40,6 +40,19 @@ export async function setupEventListeners(CACHED_ELEMENTS) {
     document.getElementById('exportBtn').addEventListener('click', exportToJson);
     document.getElementById('importBtn').addEventListener('click', () => document.getElementById('importFile').click());
     document.getElementById('importFile').addEventListener('change', importFromJson);
+
+    // [수정] 이벤트 위임을 사용하여 동적으로 생성되는 삭제 버튼의 이벤트를 처리합니다.
+    // 이 리스너는 한 번만 등록되어야 합니다.
+    document.getElementById('variableFields').addEventListener('click', (e) => {
+        const deleteBtn = e.target.closest('.delete-block-instance-btn');
+        if (deleteBtn && deleteBtn.dataset.instanceId) {
+            const instanceId = deleteBtn.dataset.instanceId;
+            const blockName = deleteBtn.dataset.blockName || '이';
+            if (confirm(`'${blockName}' 블록 인스턴스를 템플릿에서 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.`)) {
+                deleteCodeBlockInstance(instanceId);
+            }
+        }
+    });
 
     // [수정] 초기화 로직을 모달과 결합하여 재구성합니다.
     setupResetModal();
@@ -314,9 +327,11 @@ function setupCodeBlockModal() {
         const mainEditor = getEditorInstance();
         const previewCursor = cbModalState.templatePreviewEditor.getCursor();
         mainEditor.setCursor(previewCursor); // 메인 에디터 커서 위치 동기화
-        insertCodeBlock(cbModalState.selectedBlockId);
-        document.getElementById('codeBlockModal').classList.remove('is-visible');
-        showToast('코드 블록이 삽입되었습니다.', 'info');
+        const success = insertCodeBlock(cbModalState.selectedBlockId);
+        if (success) {
+            document.getElementById('codeBlockModal').classList.remove('is-visible');
+            showToast('코드 블록이 삽입되었습니다.', 'info');
+        }
     });
 }
 
@@ -401,7 +416,7 @@ function renderCbPanel2() {
 
     panel.querySelector('#cb-delete-btn').addEventListener('click', () => {
         if (confirm(`'${block.name}' 블록을 삭제하시겠습니까?`)) {
-            deleteCodeBlock(cbModalState.selectedBlockId, false); // Don't close modal
+            deleteCodeBlockTemplate(cbModalState.selectedBlockId, false); // Don't close modal
             cbModalState.selectedBlockId = null;
             cbModalState.currentStep = 1;
             updateCodeBlockModalView();
@@ -478,9 +493,11 @@ function renderCbPanel3() {
         const mainEditor = getEditorInstance();
         const previewCursor = cbModalState.templatePreviewEditor.getCursor();
         mainEditor.setCursor(previewCursor); // 메인 에디터 커서 위치 동기화
-        insertCodeBlock(cbModalState.selectedBlockId);
-        document.getElementById('codeBlockModal').classList.remove('is-visible');
-        showToast('코드 블록이 삽입되었습니다.', 'info');
+        const success = insertCodeBlock(cbModalState.selectedBlockId);
+        if (success) {
+            document.getElementById('codeBlockModal').classList.remove('is-visible');
+            showToast('코드 블록이 삽입되었습니다.', 'info');
+        }
     });
 }
 
@@ -532,33 +549,80 @@ function insertCodeBlock(blockId) {
     const editor = getEditorInstance();
     const doc = editor.getDoc();
     const cursor = doc.getCursor();
+
+    // [추가] 커서 위치가 다른 코드 블록 내부에 있는지 확인합니다.
+    const textBeforeCursor = doc.getRange({ line: 0, ch: 0 }, cursor);
+    const textAfterCursor = doc.getRange(cursor, { line: doc.lastLine() });
+
+    const startCommentRegex = /<!-- START: (block_.*?_instance_.*?) -->/g;
+    const endCommentRegex = /<!-- END: (block_.*?_instance_.*?) -->/g;
+
+    let openBlocks = new Set();
+    let match;
+
+    // 커서 이전의 텍스트에서 열린 블록을 찾습니다.
+    while ((match = startCommentRegex.exec(textBeforeCursor)) !== null) {
+        openBlocks.add(match[1]);
+    }
+    while ((match = endCommentRegex.exec(textBeforeCursor)) !== null) {
+        openBlocks.delete(match[1]);
+    }
+
+    if (openBlocks.size > 0) {
+        showToast('코드 블록 내부에 다른 코드 블록을 삽입할 수 없습니다.', 'error');
+        return false; // [수정] 실패를 나타내는 false 반환
+    }
+
     doc.replaceRange(fullBlock, cursor);
     editor.focus();
 
     // 이벤트 강제 발생 (CodeMirror의 'change' 이벤트가 자동으로 발생합니다)
     processTemplateAndExtractVariables(true); // [수정] 코드 블록 삽입임을 명시적으로 알립니다.
     saveState();
+    return true; // [추가] 성공을 나타내는 true 반환
 }
 
-function deleteCodeBlock(blockId, triggerRender = true) {
-    // 1. Delete the block definition
-    delete codeBlocks[blockId];
-
-    // 2. Remove all instances from the template
+/**
+ * [추가] 특정 코드 블록 '인스턴스'를 템플릿과 변수 설정에서 삭제합니다.
+ * @param {string} instanceId - 삭제할 인스턴스의 ID (예: block_123_instance_456)
+ */
+function deleteCodeBlockInstance(instanceId) {
+    // 1. 템플릿에서 해당 인스턴스 제거
     const editor = getEditorInstance();
     if (editor) {
         const currentValue = editor.getValue();
-        const regex = new RegExp(`<!-- START: ${blockId}_instance_\\d+ -->[\\s\\S]*?<!-- END: ${blockId}_instance_\\d+ -->\\n?`, 'g');
+        const regex = new RegExp(`<!-- START: ${instanceId} -->[\\s\\S]*?<!-- END: ${instanceId} -->\\n?`, 'g');
         editor.setValue(currentValue.replace(regex, ''));
     }
 
-    // 3. Clean up related variables
+    // 2. 관련된 변수들 정리
     Object.keys(variableConfigs).forEach(varName => {
-        if (varName.startsWith(`${blockId}_instance_`)) {
+        if (varName.startsWith(instanceId)) {
             delete variableConfigs[varName];
         }
     });
 
+    saveState();
+    processTemplateAndExtractVariables(); // UI 갱신
+    showToast('코드 블록 인스턴스가 삭제되었습니다.', 'info');
+}
+
+/**
+ * [수정] 코드 블록 '템플릿'을 삭제하고, 관련된 모든 인스턴스를 함께 제거합니다.
+ * @param {string} blockId - 삭제할 블록 템플릿의 ID
+ * @param {boolean} [triggerRender=true] - 삭제 후 UI를 다시 렌더링할지 여부
+ */
+function deleteCodeBlockTemplate(blockId, triggerRender = true) {
+    // 1. 블록 템플릿 정의 삭제
+    delete codeBlocks[blockId];
+
+    // 2. 관련된 모든 인스턴스 삭제 (이벤트 핸들러에서 UI 갱신)
+    const editorValue = getEditorInstance()?.getValue() || '';
+    const instanceRegex = new RegExp(`<!-- START: (${blockId}_instance_\\d+) -->`, 'g');
+    let match;
+    while ((match = instanceRegex.exec(editorValue)) !== null) {
+        deleteCodeBlockInstance(match[1]);
+    }
     saveState();
     if (triggerRender) {
         processTemplateAndExtractVariables();

@@ -61,7 +61,7 @@ export function unlockBodyScroll(elements) {
  * @param {object} [options] - loadIcon에 전달할 옵션
  */
 export async function setIcon(element, iconName, options = {}) {
-    if (!element) return;
+    if (!element || !iconName) return;
     const icon = await loadIcon(iconName, options);
     if (icon) {
         element.innerHTML = ''; // 기존 내용 삭제

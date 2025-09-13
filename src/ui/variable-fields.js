@@ -2,7 +2,7 @@ import { variableConfigs, codeBlocks, syncGroups, syncColorMap, currentFilter, c
 import { sanitizeId, escapeHTML, getDisplayVariableName } from '../utils.js';
 import { getEditorInstance } from './editor.js';
 import { triggerResultGeneration, processTemplateAndExtractVariables } from '../core.js';
-import { updateCollapseUI } from './dom-helpers.js';
+import { updateCollapseUI, setIcon } from './dom-helpers.js';
 import { openCustomTagModal } from './modal.js';
 
 const textInputHistory = new WeakMap();
@@ -430,28 +430,60 @@ function renderVariableFields(variables) {
     renderVariables(regularVariables, container);
 
     // Render block variables
-    blockVariables.forEach((varSet, blockId) => {
-        const blockName = codeBlocks[blockId]?.name || blockId;
+    // [수정] 인스턴스별로 그룹화하여 렌더링합니다.
+    const instances = new Map(); // instanceId -> { blockId, blockName, vars: [] }
+    variables.forEach(name => {
+        if (blockVarNames.has(name)) {
+            const instanceId = name.substring(0, name.lastIndexOf('_'));
+            if (!instances.has(instanceId)) {
+                const blockId = instanceId.split('_instance_')[0];
+                instances.set(instanceId, {
+                    blockId: blockId,
+                    blockName: codeBlocks[blockId]?.name || blockId,
+                    vars: []
+                });
+            }
+            instances.get(instanceId).vars.push(name);
+        }
+    });
+
+    instances.forEach((instanceData, instanceId) => {
         const group = document.createElement('div');
         group.className = 'variable-group';
-        group.id = `variable-group-${sanitizeId(blockId)}`; // [추가] 목차에서 링크할 ID
+        group.id = `variable-group-${sanitizeId(instanceId)}`;
+
+        // [수정] instanceId를 파싱하여 블록 ID와 인스턴스 ID로 분리합니다.
+        const parts = instanceId.match(/^(block_\d+)_instance_(\d+)$/);
+        let blockIdTag = `#${escapeHTML(instanceId)}`; // 기본값
+        let instanceIdTag = '';
+        if (parts) {
+            blockIdTag = `#b${parts[1].replace('block_', '')}`;
+            instanceIdTag = `<span class="instance-id-tag">#i${parts[2]}</span>`;
+        }
+
         group.innerHTML = `
-            <div class="variable-group-header">
-                <span>코드 블록: ${escapeHTML(blockName)}</span>
+            <div class="variable-group-header"> 
+                <div>
+                    <span class="block-group-title">코드 블록: ${escapeHTML(instanceData.blockName)}</span>
+                    <span class="instance-id-tag">${blockIdTag}</span>${instanceIdTag}
+                </div>
+                <button class="delete-block-instance-btn" data-instance-id="${instanceId}" data-block-name="${escapeHTML(instanceData.blockName)}" title="이 블록 인스턴스 삭제" data-icon="trash-2"></button>
             </div>
         `;
-        // [수정] 템플릿에 정의된 순서(templateOrder)를 기준으로 변수를 정렬합니다.
-        const varsForBlock = Array.from(varSet).filter(v => variables.includes(v));
-        const sortedVars = varsForBlock.sort((a, b) => templateOrder.indexOf(a) - templateOrder.indexOf(b));
-        
-        // 그룹 내 변수들을 렌더링하여 그룹에 추가
+
         const varContainer = document.createElement('div');
-        renderVariables(sortedVars, varContainer);
+        renderVariables(instanceData.vars, varContainer);
         group.appendChild(varContainer);
 
         // [수정] 그룹 내에 렌더링할 변수가 있을 때만 그룹을 추가합니다.
-        if (sortedVars.length > 0) {
+        if (instanceData.vars.length > 0) {
             container.appendChild(group);
+            // [수정] innerHTML로 동적으로 생성된 버튼에 아이콘을 다시 로드합니다.
+            // 이 코드가 누락되어 아이콘이 사라지는 문제가 발생했습니다.
+            const deleteBtn = group.querySelector('.delete-block-instance-btn');
+            if (deleteBtn) {
+                setIcon(deleteBtn, deleteBtn.dataset.icon);
+            }
         }
     });
 
@@ -470,6 +502,12 @@ function renderVariableFields(variables) {
         }, true);
     }
 }
+/**
+ * [수정] 변수 필드 UI를 생성하고, 동적으로 생성된 아이콘 버튼에 아이콘을 다시 로드합니다.
+ * @param {string} name - 변수 이름
+ * @param {object} cfg - 변수 설정 객체
+ * @param {string|undefined} duplicateColor - 중복 변수 하이라이트 색상
+ */
 
 function createVariableField(name, cfg, duplicateColor) {
     const field = document.createElement('details');
