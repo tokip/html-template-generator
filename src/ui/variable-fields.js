@@ -366,7 +366,6 @@ function renderVariableFields(variables) {
                     }
                     if (targetElement.tagName === 'DETAILS') {
                         targetElement.open = true;
-                        updateCollapseUI(Object.keys(variableConfigs).length);
                     }
                     const observer = new IntersectionObserver((entries, obs) => {
                         entries.forEach(entry => {
@@ -379,6 +378,8 @@ function renderVariableFields(variables) {
                                     el.classList.remove('is-hovered');
                                 });
 
+                                updateCollapseUI(Object.keys(variableConfigs).length);
+                                
                                 const targetVarName = targetElement.id.replace('var-field-', '');
                                 const groupInfo = syncColorMap[targetVarName];
                                 if (groupInfo) {
