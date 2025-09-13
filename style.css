@@ -855,6 +855,7 @@
         .sync-checkbox-list label {
             font-weight: normal;
             font-size: 14px;
+    word-break: break-all; /* [추가] 긴 변수 이름이 줄바꿈되도록 설정 */
         }
 
         /* --- [추가] 동기화 그룹 하이라이트 스타일 --- */
@@ -1355,6 +1356,11 @@
             visibility: visible;
         }
 
+/* [추가] 커스텀 태그 모달이 다른 모달 위에 표시되도록 z-index를 높입니다. */
+#customTagModal {
+    z-index: 2100;
+}
+
         .modal-content {
             background: var(--section-bg);
             border-radius: 10px;
@@ -1384,15 +1390,14 @@
 
         .modal-body {
             padding: 20px;
-            overflow-y: auto;
-            overflow-x: hidden; /* [추가] 슬라이더가 넘치는 것을 방지 */
+            overflow-y: auto; /* [수정] overflow-x를 제거하여 다른 모달에 영향을 주지 않도록 합니다. */
             position: relative;
         }
 
-        /* [추가] flex gap을 대체하기 위한 margin 설정 */
-        .modal-body>div:not(:last-child) {
-            margin-bottom: 15px;
-        }
+/* [추가] 옵션 편집 모달의 body에만 overflow-x: hidden을 적용합니다. */
+#editOptionModal .modal-body {
+    overflow-x: hidden;
+}
 
         .modal-header h4 {
             margin: 0;
@@ -1453,6 +1458,12 @@
             word-break: break-all;
         }
 
+        /* [추가] 커스텀 태그 모달 내부 요소 간의 여백 추가 */
+        #customTagModal .modal-body > div:not(:last-child) {
+            margin-bottom: 15px;
+        }
+
+
         /* [추가] 모달 텍스트 영역 플레이스홀더 스타일 */
         .modal-content .full-text-display:empty::before {
             content: attr(data-placeholder);
@@ -1481,6 +1492,11 @@
             /* [수정] 세로로 배치하기 위해 flex-wrap 추가 */
             flex-wrap: wrap;
             gap: 8px;
+        }
+
+        /* [수정] 드롭다운 옵션 편집 모달의 푸터에만 여백을 적용합니다. */
+        #editOptionModal .modal-footer {
+            padding: 16px 20px;
         }
 
         .modal-footer .actions-right {
@@ -1650,6 +1666,83 @@
             word-break: break-all;
         }
 
+/* [추가] 옵션 편집 모달의 textarea는 variable-fields의 것과 다르게 동작해야 함 */
+#editOptionNameWrapper .auto-height-textarea {
+    min-height: 60px; /* 최소 높이 지정 */
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+/* [추가] 옵션 편집 모달의 '값' textarea에도 '이름'과 동일한 스타일을 적용합니다. */
+#editOptionValueWrapper .auto-height-textarea {
+    min-height: 60px;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+/* --- [추가] 옵션 편집 모달 토글 스위치 스타일 --- */
+.option-editor-toggle {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 16px;
+}
+
+.toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 120px;
+    height: 34px;
+    background-color: var(--bg-color);
+    border-radius: 17px;
+    border: 1px solid var(--border-color);
+    cursor: pointer;
+}
+
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.slider {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 56px;
+    height: 28px;
+    background-color: #2563eb;
+    border-radius: 14px;
+    transition: .3s;
+}
+
+.toggle-switch input:checked + .slider {
+    transform: translateX(60px);
+}
+
+.toggle-switch .label-name,
+.toggle-switch .label-value {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 14px;
+    font-weight: 600;
+    user-select: none;
+    transition: color .3s;
+}
+
+.toggle-switch .label-name {
+    left: 20px;
+    color: #fff;
+}
+
+.toggle-switch .label-value {
+    right: 22px;
+    color: var(--text-color);
+}
+
+.toggle-switch input:checked ~ .label-name { color: var(--text-color); }
+.toggle-switch input:checked ~ .label-value { color: #fff; }
+
+/* [제거] 슬라이더 로직을 사용하지 않으므로 관련 스타일을 모두 제거합니다. */
         /* [추가] 코드 블록 내 CodeMirror 에디터 스타일 */
         .code-block-item .CodeMirror {
             height: auto;

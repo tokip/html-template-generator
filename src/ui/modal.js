@@ -1,5 +1,7 @@
-import { autoTaggingConfig, tagTemplates, saveState } from '../state.js';
+import { autoTaggingConfig, tagTemplates, saveState, variableConfigs } from '../state.js';
 import { escapeHTML, escapeRegExp } from '../utils.js';
+import { populateOptionsFor, textInputHistory } from './variable-fields.js';
+import { triggerResultGeneration } from '../core.js';
 
 let targetInputElement = null;
 let modalHistory = [];
@@ -24,6 +26,80 @@ const regexPatternInput = document.getElementById('autoTagRegexPattern');
 const regexTemplateSelect = document.getElementById('regexTemplateSelect');
 const regexHistoryDatalist = document.getElementById('regexHistoryDatalist');
 const regexFlagsInput = document.getElementById('autoTagRegexFlags');
+
+/**
+ * [추가] 텍스트 서식 툴바를 생성하고 이벤트 리스너를 연결하는 헬퍼 함수.
+ * @param {HTMLTextAreaElement} inputElement - 툴바가 제어할 textarea 요소.
+ * @returns {HTMLDivElement} 생성된 툴바 요소.
+ */
+function createFormattingToolbar(inputElement) {
+    const toolbar = document.createElement('div');
+    toolbar.className = 'text-format-toolbar';
+    toolbar.innerHTML = `
+        <button name="format-bold" data-tag="b" title="굵게 (Ctrl+B)">B</button>
+        <button name="format-italic" data-tag="i" title="기울임 (Ctrl+I)">I</button>
+        <button name="format-link" data-tag="a" title="링크 삽입">Link</button>
+        <button name="format-custom" data-tag="custom" title="커스텀 태그">Custom</button>
+    `;
+
+    toolbar.addEventListener('click', (e) => {
+        const btn = e.target.closest('button');
+        if (!btn) return;
+        const tag = btn.dataset.tag;
+        if (tag === 'custom') {
+            openCustomTagModal(inputElement);
+            return;
+        }
+        let attribute = '';
+        if (tag === 'a') {
+            const url = prompt('연결할 URL을 입력하세요:', 'https://');
+            if (!url) return;
+            attribute = ` href="${escapeHTML(url)}"`;
+        }
+        // wrapTextWithTag 함수는 variable-fields.js에 정의되어 있어야 합니다.
+        // 여기서는 해당 함수가 전역적으로 접근 가능하거나, import 되었다고 가정합니다.
+        // 실제로는 이 함수도 modal.js로 옮기거나 공통 유틸로 만드는 것이 좋습니다.
+        const start = inputElement.selectionStart;
+        const end = inputElement.selectionEnd;
+        const text = inputElement.value;
+        const selectedText = text.substring(start, end);
+        const newText = `${text.substring(0, start)}<${tag}${attribute}>${selectedText}</${tag}>${text.substring(end)}`;
+        inputElement.value = newText;
+        inputElement.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    return toolbar;
+}
+
+/**
+ * [추가] 옵션 편집 모달 내에서 '이름' 또는 '값' 편집기를 생성하는 헬퍼 함수.
+ * @param {string} initialValue - 편집기의 초기 텍스트 값.
+ * @returns {{panel: HTMLDivElement, input: HTMLTextAreaElement}} - 생성된 패널과 textarea 참조.
+ */
+function createOptionEditor(initialValue) {
+    const panel = document.createElement('div'); // [수정] 슬라이더를 사용하지 않으므로 클래스를 제거합니다.
+    panel.className = 'option-editor-wrapper'; // [추가] 나중에 쉽게 찾아서 제거할 수 있도록 클래스를 추가합니다.
+    const editorWrapper = document.createElement('div');
+    editorWrapper.className = 'option-editor-content';
+
+    const nameInput = document.createElement('textarea');
+    nameInput.className = 'auto-height-textarea';
+    nameInput.value = initialValue;
+    nameInput.rows = 1;
+
+    const toolbar = createFormattingToolbar(nameInput);
+    editorWrapper.append(nameInput, toolbar);
+
+    const autoResizeTextarea = (el) => {
+        el.style.height = 'auto';
+        el.style.height = (el.scrollHeight) + 'px';
+    };
+    setTimeout(() => autoResizeTextarea(nameInput), 0);
+    nameInput.addEventListener('input', () => autoResizeTextarea(nameInput));
+
+    panel.appendChild(editorWrapper);
+
+    return { panel, input: nameInput };
+}
 
 function closeModal() {
     modal.classList.remove('is-visible');
@@ -250,6 +326,105 @@ export function setupCustomTagTemplates() {
             deleteBtn.disabled = true;
         }
     });
+}
+
+/**
+ * [추가] 드롭다운 옵션 편집 모달을 열고 관리하는 함수.
+ * @param {string} varName - 옵션을 포함하는 변수의 이름.
+ * @param {number} optionIndex - 편집할 옵션의 인덱스.
+ */
+export function openEditOptionModal(varName, optionIndex) {
+    const editModal = document.getElementById('editOptionModal');
+    const closeBtn = document.getElementById('editOptionModalCloseBtn');
+    const saveBtn = document.getElementById('saveOptionBtn');
+    const toggle = document.getElementById('optionEditorToggle');
+    const modalBody = editModal.querySelector('.modal-body'); // [수정] 편집기를 modal-body에 직접 추가합니다.
+
+    const cfg = variableConfigs[varName];
+    const option = cfg.options[optionIndex];
+    if (!option) return;
+
+    // [수정] 기존 편집기 내용을 지우고, '이름'과 '값' 편집기를 각각 생성합니다.
+    modalBody.querySelectorAll('.option-editor-wrapper').forEach(el => el.remove()); // [수정] 이 코드가 이미 있지만, createOptionEditor에 클래스를 추가하여 이 코드가 올바르게 동작하도록 합니다.
+    const { panel: namePanel, input: nameInput } = createOptionEditor(option.name);
+    const { panel: valuePanel, input: valueInput } = createOptionEditor(option.value);
+    namePanel.id = 'editOptionNameWrapper';
+    valuePanel.id = 'editOptionValueWrapper';
+    modalBody.append(namePanel, valuePanel);
+
+    // [추가] 토글 스위치 이벤트 핸들러
+    toggle.checked = false; // 기본으로 '이름'을 보여줌
+    namePanel.style.display = 'block';
+    valuePanel.style.display = 'none';
+
+    const toggleHandler = () => {
+        // [수정] 슬라이더 대신 display 속성을 직접 제어하여 패널을 숨기거나 표시합니다.
+        const showValue = toggle.checked;
+        namePanel.style.display = showValue ? 'none' : 'block';
+        valuePanel.style.display = showValue ? 'block' : 'none';
+    };
+    toggle.addEventListener('change', toggleHandler);
+
+    const closeModalHandler = () => {
+        editModal.classList.remove('is-visible');
+        saveBtn.removeEventListener('click', saveHandler);
+        closeBtn.removeEventListener('click', closeModalHandler);
+        editModal.removeEventListener('click', overlayClickHandler);
+        toggle.removeEventListener('change', toggleHandler); // [추가] 이벤트 리스너 정리
+    };
+
+    const saveHandler = () => {
+        const newName = nameInput.value;
+        const newValue = valueInput.value;
+
+        if (!newValue) {
+            showToast('옵션 값은 비워둘 수 없습니다.', 'error');
+            return;
+        }
+
+        // [수정] 값에 HTML 태그가 포함될 수 있으므로, trim()을 사용하지 않고 순수 텍스트만 비교합니다.
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = newValue;
+        const newValueText = tempDiv.textContent || tempDiv.innerText || '';
+
+        // 자기 자신을 제외하고 값이 중복되는지 확인
+        if (newValue !== option.value && cfg.options.some(o => o.value === newValueText)) {
+            showToast('동일한 옵션 값이 이미 존재합니다.', 'error');
+            return;
+        }
+
+        // 변경 사항 적용
+        option.name = newName || newValue; // 이름이 비어있으면 값으로 대체
+        
+        // 기본값이 변경된 값과 일치하면 기본값도 업데이트
+        if (cfg.default === option.value) {
+            cfg.default = newValue;
+        }
+
+        option.value = newValue;
+
+        saveState();
+        // UI 갱신
+        const selElement = document.getElementById(`id_${Array.from(varName).map(char => char.charCodeAt(0).toString(16)).join('')}_select`);
+        const chipsElement = document.getElementById(`id_${Array.from(varName).map(char => char.charCodeAt(0).toString(16)).join('')}_chips`);
+        populateOptionsFor(varName, selElement, chipsElement, true);
+        triggerResultGeneration();
+
+        closeModalHandler();
+    };
+
+    const overlayClickHandler = (e) => {
+        if (e.target === editModal) {
+            closeModalHandler();
+        }
+    };
+
+    saveBtn.addEventListener('click', saveHandler);
+    closeBtn.addEventListener('click', closeModalHandler);
+    editModal.addEventListener('click', overlayClickHandler);
+
+    // [추가] 모달이 열릴 때 초기 활성 패널을 설정합니다.
+    editModal.classList.add('is-visible');
 }
 
 function populateTagTemplates() {

@@ -43,27 +43,16 @@ export function markCodeBlocks(cm) {
                     inclusiveRight: true,
                 });
 
-                // [수정] 시작 주석을 편집 불가능하고 보이지 않는 원자 단위로 만듭니다.
-                // [수정] 주석뿐만 아니라 해당 줄 전체를 숨기기 위해 다음 줄의 시작까지 포함합니다.
-                const startCommentEndPos = { line: startPos.line + 1, ch: 0 };
-                cm.markText(startPos, startCommentEndPos, { 
-                    atomic: true,
-                    readOnly: true,
-                    replacedWith: document.createElement('span'),
-                    inclusiveLeft: true,
-                    inclusiveRight: false // 다음 줄의 시작 부분은 포함하지 않음
+                // [추가] 시작 주석을 편집 불가능하게 만듭니다.
+                const startCommentEndPos = cm.posFromIndex(match.index + match[0].length);
+                cm.markText(startPos, startCommentEndPos, {
+                    readOnly: true
                 });
 
-                // [수정] 종료 주석을 편집 불가능하고 보이지 않는 원자 단위로 만듭니다.
+                // [추가] 종료 주석을 편집 불가능하게 만듭니다.
                 const endCommentStartPos = cm.posFromIndex(endIndex);
-                // [수정] 종료 주석이 포함된 줄 전체를 숨깁니다.
-                const endCommentEndPos = { line: endCommentStartPos.line + 1, ch: 0 };
-                cm.markText(endCommentStartPos, endCommentEndPos, {
-                    atomic: true,
-                    readOnly: true,
-                    replacedWith: document.createElement('span'),
-                    inclusiveLeft: true,
-                    inclusiveRight: false
+                cm.markText(endCommentStartPos, endPos, {
+                    readOnly: true
                 });
             }
         }

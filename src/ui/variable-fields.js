@@ -5,7 +5,8 @@ import { triggerResultGeneration, processTemplateAndExtractVariables } from '../
 import { updateCollapseUI, setIcon } from './dom-helpers.js';
 import { openCustomTagModal } from './modal.js';
 
-const textInputHistory = new WeakMap();
+import { openEditOptionModal } from './modal.js'; // [추가] 옵션 편집 모달 함수 임포트
+export const textInputHistory = new WeakMap(); // [수정] modal.js에서 접근 가능하도록 export
 let blockVarNames = new Set(); // [수정] 모듈 스코프로 이동
 
 function assignSyncGroupColors() {
@@ -1094,7 +1095,7 @@ function initializeDragAndDrop(chipsContainer, name, cfg, sel) {
     }
 }
 
-function populateOptionsFor(name, selElement, chipsElement, triggerSync = false) {
+export function populateOptionsFor(name, selElement, chipsElement, triggerSync = false) {
     const cfg = variableConfigs[name];
     const sel = selElement || document.getElementById(sanitizeId(name) + '_select');
     const chips = chipsElement || document.getElementById(sanitizeId(name) + '_chips');
@@ -1168,59 +1169,12 @@ function populateOptionsFor(name, selElement, chipsElement, triggerSync = false)
                 span.style.color = 'var(--value-span-text)';
             }
 
-            span.addEventListener('dblclick', () => makeEditable(span, key, isOnlyValue));
+            // [수정] 더블클릭 시 인라인 편집 대신 모달을 엽니다.
+            span.addEventListener('dblclick', () => {
+                openEditOptionModal(name, index);
+            });
             return span;
         }
-
-        const makeEditable = (span, key, isOnlyValue) => {
-            const oldText = span.textContent;
-            const oldVal = opt[key];
-            const input = document.createElement('input');
-            input.type = 'text';
-            input.value = oldVal;
-            span.style.display = 'none';
-
-            const parentChip = span.closest('.chip');
-            if (parentChip) parentChip.draggable = false;
-
-            span.parentElement.insertBefore(input, span.nextSibling);
-            input.focus();
-
-            const saveChange = () => {
-                const newVal = (input.value || '').trim();
-                if (key === 'value' && !newVal) {
-                    alert('값은 비워둘 수 없습니다.');
-                    input.remove();
-                    span.style.display = '';
-                    return;
-                }
-                if (newVal && newVal !== oldVal) {
-                    if (key === 'value' && cfg.options.some(o => o.value === newVal)) {
-                        alert('동일한 값이 이미 존재합니다.');
-                    } else {
-                        opt[key] = newVal;
-                        if (isOnlyValue) {
-                            opt.name = newVal;
-                        }
-                        if (key === 'value' && cfg.default === oldVal) {
-                            cfg.default = newVal;
-                        }
-                        saveState();
-                    }
-                }
-                populateOptionsFor(name, sel, chips);
-                if (parentChip) parentChip.draggable = true;
-            };
-            input.addEventListener('blur', saveChange);
-            input.addEventListener('keydown', e => {
-                if (e.key === 'Enter') input.blur();
-                if (e.key === 'Escape') {
-                    input.removeEventListener('blur', saveChange);
-                    input.blur();
-                    if (parentChip) parentChip.draggable = true;
-                }
-            });
-        };
 
         deleteBtn.addEventListener('click', () => {
             cfg.options = cfg.options.filter(o => o.value !== opt.value);
