@@ -1666,16 +1666,10 @@
             word-break: break-all;
         }
 
-/* [추가] 옵션 편집 모달의 textarea는 variable-fields의 것과 다르게 동작해야 함 */
-#editOptionNameWrapper .auto-height-textarea {
-    min-height: 60px; /* 최소 높이 지정 */
-    white-space: pre-wrap;
-    word-break: break-all;
-}
-
-/* [추가] 옵션 편집 모달의 '값' textarea에도 '이름'과 동일한 스타일을 적용합니다. */
-#editOptionValueWrapper .auto-height-textarea {
-    min-height: 60px;
+/* [수정] 옵션 편집 모달의 textarea도 다른 자동 높이 조절 textarea와 동일하게 동작하도록 합니다. */
+#editOptionModal .auto-height-textarea {
+    /* 이전에 추가했던 고정 높이(min-height)와 스크롤(overflow-y) 스타일을 제거합니다. */
+    /* .auto-height-textarea의 기본 스타일을 그대로 따릅니다. */
     white-space: pre-wrap;
     word-break: break-all;
 }

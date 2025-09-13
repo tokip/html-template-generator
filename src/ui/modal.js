@@ -71,6 +71,16 @@ function createFormattingToolbar(inputElement) {
 }
 
 /**
+ * [추가] textarea의 높이를 내용에 맞게 자동으로 조절하는 헬퍼 함수.
+ * @param {HTMLTextAreaElement} el - 높이를 조절할 textarea 요소.
+ */
+function autoResizeTextarea(el) {
+    // [수정] 높이를 초기화한 후 scrollHeight를 기반으로 다시 설정하여 정확한 계산을 보장합니다.
+    el.style.height = 'auto';
+    el.style.height = (el.scrollHeight) + 'px';
+}
+
+/**
  * [추가] 옵션 편집 모달 내에서 '이름' 또는 '값' 편집기를 생성하는 헬퍼 함수.
  * @param {string} initialValue - 편집기의 초기 텍스트 값.
  * @returns {{panel: HTMLDivElement, input: HTMLTextAreaElement}} - 생성된 패널과 textarea 참조.
@@ -89,12 +99,13 @@ function createOptionEditor(initialValue) {
     const toolbar = createFormattingToolbar(nameInput);
     editorWrapper.append(nameInput, toolbar);
 
-    const autoResizeTextarea = (el) => {
-        el.style.height = 'auto';
-        el.style.height = (el.scrollHeight) + 'px';
-    };
+    // [수정] 모달이 표시된 후 초기 높이를 계산하고, 내용이 변경될 때마다 높이를 조절합니다.
+    nameInput.addEventListener('input', () => {
+        autoResizeTextarea(nameInput);
+    });
+    // [추가] 변수 텍스트 입력 모드와 동일하게, setTimeout을 사용하여 초기 높이를 설정합니다.
+    // 이렇게 하면 textarea가 DOM에 추가된 후 높이가 계산되어 정확성이 높아집니다.
     setTimeout(() => autoResizeTextarea(nameInput), 0);
-    nameInput.addEventListener('input', () => autoResizeTextarea(nameInput));
 
     panel.appendChild(editorWrapper);
 
@@ -362,6 +373,14 @@ export function openEditOptionModal(varName, optionIndex) {
         const showValue = toggle.checked;
         namePanel.style.display = showValue ? 'none' : 'block';
         valuePanel.style.display = showValue ? 'block' : 'none';
+
+        // [수정] 패널이 화면에 표시된 후(display: block)에 높이를 재계산합니다.
+        // display: none 상태에서는 scrollHeight가 0으로 계산되어 높이 조절이 실패하기 때문입니다.
+        if (showValue) {
+            autoResizeTextarea(valueInput);
+        } else {
+            autoResizeTextarea(nameInput);
+        }
     };
     toggle.addEventListener('change', toggleHandler);
 
@@ -425,6 +444,7 @@ export function openEditOptionModal(varName, optionIndex) {
 
     // [추가] 모달이 열릴 때 초기 활성 패널을 설정합니다.
     editModal.classList.add('is-visible');
+
 }
 
 function populateTagTemplates() {
