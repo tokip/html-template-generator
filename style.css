@@ -1970,6 +1970,12 @@
             display: block; /* 애니메이션을 위해 block으로 설정 */
         }
 
+        /* [추가] 퀵 커스텀 태깅 모달의 중복 변수 하이라이트 스타일 */
+        .quick-tagging-item.duplicate-variable-highlight {
+            border-left: 4px solid var(--duplicate-color, transparent);
+            transition: border-color 0.3s;
+        }
+
         .quick-tagging-item:hover {
             background-color: var(--bg-color);
         }

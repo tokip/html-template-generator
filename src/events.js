@@ -1,5 +1,5 @@
 import { processTemplateAndExtractVariables, generateResult, triggerResultGeneration } from './core.js';
-import { exportToJson, importFromJson, saveState, setTheme, currentTheme, variableConfigs, codeBlocks, setCodeBlocks, setVariableConfigs, setSyncGroups, setSyncColorMap, setTemplateOrder, setCurrentFilter, setCurrentSort } from './state.js';
+import { exportToJson, importFromJson, saveState, setTheme, currentTheme, variableConfigs, codeBlocks, setCodeBlocks, setVariableConfigs, setSyncGroups, setSyncColorMap, setTemplateOrder, setCurrentFilter, setCurrentSort, setQuickTaggingSelection } from './state.js';
 import { doBeautify, debounce, loadIcon, showToast, escapeHTML } from './utils.js';
 import { updateCollapseUI, lockBodyScroll, unlockBodyScroll, setIcon } from './ui/dom-helpers.js';
 import { manageTocCollapse } from './ui/variable-fields.js';
@@ -174,6 +174,7 @@ function resetApplicationState() {
     setSyncGroups({});
     setSyncColorMap({});
     setTemplateOrder([]);
+    setQuickTaggingSelection([]); // [추가]
     setCurrentFilter('all');
     setCurrentSort('default');
     setTheme('light');

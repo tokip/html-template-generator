@@ -1,7 +1,8 @@
-import { autoTaggingConfig, tagTemplates, regexTemplates, keywordTemplates, saveState, variableConfigs } from '../state.js';
-import { escapeHTML, escapeRegExp, sanitizeId } from '../utils.js';
+import { autoTaggingConfig, tagTemplates, regexTemplates, keywordTemplates, saveState, variableConfigs, codeBlocks, quickTaggingSelection, setQuickTaggingSelection } from '../state.js';
+import { escapeHTML, escapeRegExp, sanitizeId, getDisplayVariableName } from '../utils.js';
 import { populateOptionsFor, textInputHistory } from './variable-fields.js';
 import { triggerResultGeneration } from '../core.js';
+import { getEditorInstance } from './editor.js';
 
 let targetInputElement = null;
 let modalHistory = [];
@@ -444,6 +445,9 @@ export function setupQuickTaggingModal() {
     const selectAllBtn = document.getElementById('quickTaggingSelectAllBtn');
     const openCustomModalBtn = document.getElementById('quickTaggingOpenModalBtn');
 
+    // [수정] blockVarNames를 함수 스코프로 이동하여 renderQuickTagItem에서 접근할 수 있도록 합니다.
+    let blockVarNames = new Set();
+
     openBtn.addEventListener('click', () => {
         listContainer.innerHTML = '';
         // [수정] '변수 설정'의 현재 정렬 순서를 가져와 텍스트 변수만 필터링합니다.
@@ -455,63 +459,160 @@ export function setupQuickTaggingModal() {
             })
             .filter(name => name && variableConfigs[name]?.mode === 'text');
 
+        // [추가] 코드 블록 변수와 일반 변수를 분류합니다.
+        blockVarNames.clear(); // 모달을 열 때마다 초기화
+        const tpl = getEditorInstance()?.getValue() || '';
+        const blockInstanceRegex = /<!-- START: (.+?) -->/g;
+        let match;
+        while ((match = blockInstanceRegex.exec(tpl)) !== null) {
+            const instanceId = match[1];
+            const varRegex = new RegExp(`{{\\s*(${escapeHTML(instanceId)}_[^\\s{}]+)\\s*}}`, 'g');
+            let varMatch;
+            while ((varMatch = varRegex.exec(tpl)) !== null) {
+                blockVarNames.add(varMatch[1]);
+            }
+        }
 
-        if (sortedVariableNames.length === 0) {
+        const regularVars = sortedVariableNames.filter(name => !blockVarNames.has(name));
+        const blockVars = sortedVariableNames.filter(name => blockVarNames.has(name));
+
+        // [추가] 중복된 표시 이름을 가진 변수들을 찾아 색상을 할당합니다.
+        const duplicateColorMap = {};
+        const displayNameCounts = {};
+        sortedVariableNames.forEach(name => {
+            const displayName = getDisplayVariableName(name, blockVarNames);
+            displayNameCounts[displayName] = (displayNameCounts[displayName] || 0) + 1;
+        });
+
+        const duplicateDisplayNames = Object.keys(displayNameCounts).filter(name => displayNameCounts[name] > 1);
+        if (duplicateDisplayNames.length > 0) {
+            const colors = ['#e11d48', '#db2777', '#9333ea', '#6d28d9', '#4f46e5', '#2563eb', '#0284c7', '#0d9488', '#15803d', '#65a30d', '#ca8a04', '#d97706', '#ea580c'];
+            let colorIndex = 0;
+            duplicateDisplayNames.forEach(displayName => {
+                const duplicates = sortedVariableNames
+                    .filter(fullName => getDisplayVariableName(fullName, blockVarNames) === displayName);
+                duplicates.slice(1).forEach(fullName => {
+                    duplicateColorMap[fullName] = colors[colorIndex % colors.length];
+                    colorIndex++;
+                });
+            });
+        }
+
+        if (regularVars.length === 0 && blockVars.length === 0) {
             listContainer.innerHTML = '<p class="hint">태그를 적용할 텍스트 변수가 없습니다.</p>';
         } else {
-            sortedVariableNames.forEach(name => {
-                const id = `quick-tag-check-${sanitizeId(name)}`;
-                const item = document.createElement('div');
-                item.className = 'quick-tagging-item';
-                item.dataset.varName = name;
-                item.innerHTML = `
-                    <div class="custom-checkbox">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                    </div>
-                    <div class="label-container">
-                        <label>${escapeHTML(name)}</label>
-                    </div>
-                    <input type="checkbox" id="${id}" value="${name}" class="visually-hidden">
-                `;
-                listContainer.appendChild(item);
+            // 일반 변수 렌더링
+            regularVars.forEach(name => renderQuickTagItem(name, listContainer, duplicateColorMap[name]));
 
-                const label = item.querySelector('label');
-                let scrollAnimation;
+            if (regularVars.length > 0 && blockVars.length > 0) {
+                const divider = document.createElement('div');
+                divider.className = 'quick-menu-divider'; // 퀵 메뉴 스타일 재사용
+                listContainer.appendChild(divider);
+            }
 
-                item.addEventListener('mouseenter', () => {
-                    if (label.scrollWidth > label.clientWidth) {
-                        const scrollAmount = label.scrollWidth - label.clientWidth;
-                        const duration = scrollAmount * 20; // 1px당 20ms로 속도 약간 조절
-                        // [수정] 키프레임 수정: 끝까지 갔다가(100%) 잠시 멈춘 후 처음으로 돌아가 반복
-                        scrollAnimation = label.animate([
-                            { transform: 'translateX(0)' }, // 시작
-                            { transform: `translateX(-${scrollAmount}px)`, offset: 0.8 }, // 80% 지점까지 스크롤
-                            { transform: `translateX(-${scrollAmount}px)`, offset: 1 } // 100% 지점까지 멈춤
-                        ], {
-                            // [수정] 전체 애니메이션 시간 = 스크롤 시간 + 멈춤 시간
-                            duration: duration + 3000, // 3초 멈춤
-                            delay: 500, // 0.5초 후 시작
-                            iterations: Infinity,
-                            easing: 'ease-in-out'
-                        });
-                    }
-                });
+            // 코드 블록 변수를 인스턴스별로 그룹화하여 렌더링
+            const groupedBlockVars = new Map();
+            blockVars.forEach(name => {
+                const instanceId = name.substring(0, name.lastIndexOf('_'));
+                if (!groupedBlockVars.has(instanceId)) {
+                    groupedBlockVars.set(instanceId, []);
+                }
+                groupedBlockVars.get(instanceId).push(name);
+            });
 
-                item.addEventListener('mouseleave', () => {
-                    if (scrollAnimation) scrollAnimation.cancel();
-                });
+            groupedBlockVars.forEach((vars, instanceId) => {
+                const blockId = instanceId.split('_instance_')[0];
+                const blockName = codeBlocks[blockId]?.name || blockId;
 
-                item.addEventListener('click', () => {
-                    const checkbox = item.querySelector('input[type="checkbox"]');
-                    checkbox.checked = !checkbox.checked;
-                    item.classList.toggle('is-checked', checkbox.checked);
-                    listContainer.dispatchEvent(new Event('change', { bubbles: true }));
-                });
+                const parts = instanceId.match(/^(block_\d+)_instance_(\d+)$/);
+                let blockIdTag = `#${escapeHTML(instanceId)}`;
+                let instanceIdTag = '';
+                if (parts) {
+                    blockIdTag = `#b${parts[1].replace('block_', '')}`;
+                    instanceIdTag = `<span class="instance-id-tag">#i${parts[2]}</span>`;
+                }
+
+                const groupHeader = document.createElement('div');
+                groupHeader.className = 'quick-menu-group-header'; // 퀵 메뉴 스타일 재사용
+                // [수정] 그룹 헤더에 블록 ID와 인스턴스 ID 태그를 추가합니다.
+                groupHeader.innerHTML = `코드 블록: ${escapeHTML(blockName)} <span class="instance-id-tag">${blockIdTag}</span>${instanceIdTag}`;
+                listContainer.appendChild(groupHeader);
+
+                vars.forEach(name => renderQuickTagItem(name, listContainer, duplicateColorMap[name]));
             });
         }
         openCustomModalBtn.disabled = true;
         modal.classList.add('is-visible');
     });
+
+    /**
+     * [추가] 퀵 태깅 모달에 표시될 개별 변수 아이템을 생성하고 렌더링합니다.
+     * @param {string} name - 변수 이름
+     * @param {HTMLElement} container - 아이템을 추가할 부모 컨테이너
+     * @param {string|undefined} duplicateColor - 중복 하이라이트 색상
+     */
+    function renderQuickTagItem(name, container, duplicateColor) {
+        // [추가] 저장된 선택 상태를 확인합니다.
+        const isChecked = quickTaggingSelection.includes(name);
+
+        const id = `quick-tag-check-${sanitizeId(name)}`;
+        const item = document.createElement('div');
+        item.className = 'quick-tagging-item';
+        item.dataset.varName = name;
+
+        // [추가] 중복 이름 하이라이트 적용
+        if (duplicateColor) {
+            item.classList.add('duplicate-variable-highlight');
+            item.style.setProperty('--duplicate-color', duplicateColor);
+        }
+
+        item.innerHTML = `
+                    <div class="custom-checkbox">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                    </div>
+                    <div class="label-container">
+                        <label>${getDisplayVariableName(name, blockVarNames)}</label>
+                    </div>
+                    <input type="checkbox" id="${id}" value="${name}" class="visually-hidden" ${isChecked ? 'checked' : ''}>
+                `;
+        container.appendChild(item);
+
+        // [추가] 저장된 상태에 따라 초기 클래스를 설정합니다.
+        if (isChecked) {
+            item.classList.add('is-checked');
+        }
+
+        const label = item.querySelector('label');
+        let scrollAnimation;
+
+        item.addEventListener('mouseenter', () => {
+            if (label.scrollWidth > label.clientWidth) {
+                const scrollAmount = label.scrollWidth - label.clientWidth;
+                const duration = scrollAmount * 20;
+                scrollAnimation = label.animate([
+                    { transform: 'translateX(0)' },
+                    { transform: `translateX(-${scrollAmount}px)`, offset: 0.8 },
+                    { transform: `translateX(-${scrollAmount}px)`, offset: 1 }
+                ], {
+                    duration: duration + 3000,
+                    delay: 500,
+                    iterations: Infinity,
+                    easing: 'ease-in-out'
+                });
+            }
+        });
+
+        item.addEventListener('mouseleave', () => {
+            if (scrollAnimation) scrollAnimation.cancel();
+        });
+
+        item.addEventListener('click', () => {
+            const checkbox = item.querySelector('input[type="checkbox"]');
+            checkbox.checked = !checkbox.checked;
+            item.classList.toggle('is-checked', checkbox.checked);
+            container.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+    }
 
     closeBtn.addEventListener('click', () => modal.classList.remove('is-visible'));
     modal.addEventListener('click', (e) => { if (e.target === modal) modal.classList.remove('is-visible'); });
@@ -519,6 +620,11 @@ export function setupQuickTaggingModal() {
     listContainer.addEventListener('change', () => {
         const selected = listContainer.querySelectorAll('input[type="checkbox"]:checked');
         openCustomModalBtn.disabled = selected.length === 0;
+
+        // [추가] 선택 상태가 변경될 때마다 상태를 저장합니다.
+        const newSelection = Array.from(selected).map(cb => cb.value);
+        setQuickTaggingSelection(newSelection);
+        saveState();
     });
 
     selectAllBtn.addEventListener('click', () => {
@@ -531,6 +637,7 @@ export function setupQuickTaggingModal() {
         });
 
         openCustomModalBtn.disabled = !shouldSelectAll;
+        listContainer.dispatchEvent(new Event('change', { bubbles: true })); // [추가] 변경 이벤트를 트리거하여 상태를 저장합니다.
     });
 
     openCustomModalBtn.addEventListener('click', () => {
