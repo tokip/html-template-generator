@@ -4,8 +4,8 @@ import { doBeautify, debounce, loadIcon, showToast, escapeHTML } from './utils.j
 import { updateCollapseUI, lockBodyScroll, unlockBodyScroll, setIcon } from './ui/dom-helpers.js';
 import { manageTocCollapse } from './ui/variable-fields.js';
 import { renderQuickMenu, adjustQuickMenuPosition, toggleQuickMenu, setupQuickMenuInteractions } from './ui/quick-menu.js';
-import { setupMaximizeMode } from './ui/maximize.js';
-import { setupCustomTagTemplates, setupAutoTagSettings } from './ui/modal.js'; 
+import { setupMaximizeMode } from './ui/maximize.js'; 
+import { setupCustomTagTemplates, setupAutoTagSettings, setupQuickTaggingModal } from './ui/modal.js';
 import { getEditorInstance, getResultEditorInstance } from './ui/editor.js';
 import { markCodeBlocks } from './ui/editor.js';
 
@@ -137,6 +137,7 @@ export async function setupEventListeners(CACHED_ELEMENTS) {
     setupMaximizeMode();
     setupCustomTagTemplates();
     setupAutoTagSettings();
+    setupQuickTaggingModal(); // [추가]
 }
 
 function copyToClipboard() {

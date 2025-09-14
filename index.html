@@ -53,6 +53,7 @@
                 <div class="flex" style="margin-top:8px; justify-content: space-between;">
                     <div>
                         <button id="add-code-block-modal-btn" title="코드 블록 추가/삽입" data-icon="code_blocks"></button>
+                        <button id="quick-tagging-btn" title="퀵 커스텀 태깅" data-icon="tag"></button>
                     </div>
                     <div class="flex">
                         <button id="extractBtn" title="변수 추출 및 업데이트" data-icon="update"></button>
@@ -225,25 +226,27 @@
                             <div class="grid-span-2">
                                 <div id="autoTagKeywordSettings">
                                     <div class="settings-group">
-                                        <label for="autoTagKeywords">키워드 (쉼표로 구분):</label>
-                                        <input type="text" id="autoTagKeywords" placeholder="예: 스킬, 공격력, 이벤트">
+                                        <label for="autoTagKeywords">키워드 템플릿</label>
+                                        <div class="tag-template-controls">
+                                            <select id="keywordTemplateSelect" style="flex-grow: 1;"><option value="">저장된 템플릿 없음</option></select>
+                                            <button id="saveKeywordTemplateBtn" class="secondary" title="현재 키워드를 템플릿으로 저장" data-icon="save"></button>
+                                            <button id="deleteKeywordTemplateBtn" class="warning" title="선택한 템플릿 삭제" data-icon="trash-2" disabled></button>
+                                        </div>
+                                        <input type="text" id="autoTagKeywords" placeholder="쉼표로 구분된 키워드 입력 또는 템플릿 선택" style="margin-top: 8px; width: 100%; box-sizing: border-box;">
                                     </div>
                                 </div>
                                 <div id="autoTagRegexSettings" style="display: none;">
                                     <div class="settings-group"
                                         style="display: flex; flex-direction: column; gap: 8px;">
                                         <div>
-                                            <label for="regexTemplateSelect">정규식 템플릿:</label>
-                                            <select id="regexTemplateSelect" style="width: 100%;">
-                                                <option value="">템플릿 선택...</option>
-                                                <option value="\d+::g">모든 숫자</option>
-                                                <option value="[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}::g">이메일 주소
-                                                </option>
-                                                <option value="https?:\/\/[^\s/$.?#].[^\s]*::g">URL 주소</option>
-                                                <option value="&lt;[^>]*&gt;::g">HTML 태그</option>
-                                                <option value="\d{1,3}(,\d{3})*(\.\d+)?::g">쉼표가 있는 숫자 (예: 1,234)
-                                                </option>
-                                            </select>
+                                            <label for="regexTemplateSelect">정규식 템플릿</label>
+                                            <div class="tag-template-controls">
+                                                <select id="regexTemplateSelect" style="flex-grow: 1;">
+                                                    <option value="">저장된 템플릿 없음</option>
+                                                </select>
+                                                <button id="saveRegexTemplateBtn" class="secondary" title="현재 정규식을 템플릿으로 저장" data-icon="save"></button>
+                                                <button id="deleteRegexTemplateBtn" class="warning" title="선택한 템플릿 삭제" data-icon="trash-2" disabled></button>
+                                            </div>
                                         </div>
                                         <div>
                                             <label for="autoTagRegexPattern">정규식 패턴 (이력):</label>
@@ -266,7 +269,7 @@
                             </div>
                             <div class="settings-group grid-span-2">
                                 <label for="autoTagExclusion">제외할 문자 (쉼표로 구분):</label>
-                                <input type="text" id="autoTagExclusion" placeholder="예: 제외, 단어">
+                                <input type="text" id="autoTagExclusion" placeholder="예: 제외, 단어" style="width: 100%; box-sizing: border-box;">
                             </div>
                             <!-- [추가] 키워드 대체 기능 UI -->
                             <div class="settings-group grid-span-2">
@@ -287,6 +290,25 @@
         </div>
     </div>
 
+    <!-- [추가] 퀵 커스텀 태깅 모달 -->
+    <div id="quickTaggingModal" class="modal-overlay">
+        <div class="modal-content" style="max-width: 480px;">
+            <div class="modal-header">
+                <h4>퀵 커스텀 태깅</h4>
+                <button id="quickTaggingModalCloseBtn" class="modal-close-btn" title="닫기">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p class="hint">태그를 일괄 적용할 텍스트 변수를 선택하세요.</p>
+                <div id="quickTaggingVariableList">
+                    <!-- JS로 변수 목록 채움 -->
+                </div>
+            </div>
+            <div class="modal-footer" style="padding: 16px 20px; justify-content: space-between;">
+                <button id="quickTaggingSelectAllBtn" class="secondary">모두 선택</button>
+                <button id="quickTaggingOpenModalBtn" disabled>커스텀 태그 모달 열기</button>
+            </div>
+        </div>
+    </div>
     <!-- [추가] 드롭다운 옵션 편집 모달 -->
     <div id="editOptionModal" class="modal-overlay">
         <div class="modal-content" style="max-width: 520px;">

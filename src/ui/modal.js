@@ -1,11 +1,12 @@
-import { autoTaggingConfig, tagTemplates, saveState, variableConfigs } from '../state.js';
-import { escapeHTML, escapeRegExp } from '../utils.js';
+import { autoTaggingConfig, tagTemplates, regexTemplates, keywordTemplates, saveState, variableConfigs } from '../state.js';
+import { escapeHTML, escapeRegExp, sanitizeId } from '../utils.js';
 import { populateOptionsFor, textInputHistory } from './variable-fields.js';
 import { triggerResultGeneration } from '../core.js';
 
 let targetInputElement = null;
 let modalHistory = [];
 let resizeObserver;
+let quickTaggingTargets = []; // [추가] 퀵 태깅 대상 변수들을 저장할 배열
 
 const modal = document.getElementById('customTagModal');
 const modalContent = modal.querySelector('.modal-content');
@@ -26,6 +27,13 @@ const regexPatternInput = document.getElementById('autoTagRegexPattern');
 const regexTemplateSelect = document.getElementById('regexTemplateSelect');
 const regexHistoryDatalist = document.getElementById('regexHistoryDatalist');
 const regexFlagsInput = document.getElementById('autoTagRegexFlags');
+// [추가] 정규식 템플릿 관리 버튼
+const saveRegexTemplateBtn = document.getElementById('saveRegexTemplateBtn');
+const deleteRegexTemplateBtn = document.getElementById('deleteRegexTemplateBtn');
+// [추가] 키워드 템플릿 UI 요소
+const keywordTemplateSelect = document.getElementById('keywordTemplateSelect');
+const saveKeywordTemplateBtn = document.getElementById('saveKeywordTemplateBtn');
+const deleteKeywordTemplateBtn = document.getElementById('deleteKeywordTemplateBtn');
 // [추가] 키워드 대체 UI 요소
 const autoTagReplaceToggle = document.getElementById('autoTagReplaceToggle');
 const autoTagReplaceKeywordInput = document.getElementById('autoTagReplaceKeyword');
@@ -221,8 +229,6 @@ function handleInsert() {
         newText = fullTextDisplay.textContent;
     }
 
-    targetInputElement.value = newText;
-    targetInputElement.dispatchEvent(new Event('input', { bubbles: true }));
     fullTextDisplay.innerText = newText; // [보안 수정] XSS 방지를 위해 textContent 대신 innerText 사용
     modalHistory.push(newText);
     if (!newText) {
@@ -231,14 +237,20 @@ function handleInsert() {
         fullTextDisplay.removeAttribute('data-placeholder');
     }
     undoBtn.disabled = false;
+
+    // [추가] 퀵 태깅으로 변경된 내용을 각 변수에 다시 적용
+    if (quickTaggingTargets.length > 0) { // 퀵 태깅 모드
+        applyQuickTaggingChanges(newText);
+    } else if (targetInputElement) { // 일반 태깅 모드
+        targetInputElement.value = newText;
+        targetInputElement.dispatchEvent(new Event('input', { bubbles: true }));
+    }
 }
 
 function handleUndo() {
     if (modalHistory.length <= 1) return;
     modalHistory.pop();
     const previousText = modalHistory[modalHistory.length - 1];
-    targetInputElement.value = previousText;
-    targetInputElement.dispatchEvent(new Event('input', { bubbles: true })); 
     fullTextDisplay.innerText = previousText; // [보안 수정] XSS 방지를 위해 textContent 대신 innerText 사용
     if (!previousText) {
         fullTextDisplay.setAttribute('data-placeholder', '(비어 있음)');
@@ -246,6 +258,14 @@ function handleUndo() {
         fullTextDisplay.removeAttribute('data-placeholder');
     }
     if (modalHistory.length <= 1) undoBtn.disabled = true;
+
+    // [추가] 퀵 태깅 되돌리기도 각 변수에 다시 적용
+    if (quickTaggingTargets.length > 0) { // 퀵 태깅 모드
+        applyQuickTaggingChanges(previousText);
+    } else if (targetInputElement) { // 일반 태깅 모드
+        targetInputElement.value = previousText;
+        targetInputElement.dispatchEvent(new Event('input', { bubbles: true }));
+    }
 }
 
 function handleModalKeyDown(e) {
@@ -261,11 +281,27 @@ function handleModalKeyDown(e) {
 }
 
 export function openCustomTagModal(inputElement) {
-    targetInputElement = inputElement;
-    modalHistory = [targetInputElement.value];
+    // [수정] 퀵 태깅과 일반 태깅을 구분하여 처리
+    if (Array.isArray(inputElement)) { // 퀵 태깅의 경우
+        quickTaggingTargets = inputElement;
+        targetInputElement = null; // 일반 targetInputElement는 사용하지 않음
+    } else { // 일반 태깅의 경우
+        quickTaggingTargets = [];
+        targetInputElement = inputElement;
+    }
+    
+    let initialText, initialHtml;
+    if (Array.isArray(inputElement)) { // 퀵 태깅
+        initialHtml = getCombinedTextFromQuickTagTargets();
+        fullTextDisplay.innerHTML = initialHtml;
+        initialText = fullTextDisplay.innerText; // HTML에서 텍스트만 추출
+    } else { // 일반 태깅
+        initialText = inputElement.value;
+        fullTextDisplay.innerText = initialText;
+    }
+    modalHistory = [initialText]; // 히스토리에는 순수 텍스트만 저장
 
     undoBtn.disabled = true;
-    fullTextDisplay.innerText = targetInputElement.value; // [보안 수정] XSS 방지를 위해 textContent 대신 innerText 사용
     autoTagToggle.checked = autoTaggingConfig.enabled;
     exclusionInput.value = autoTaggingConfig.exclusion;
     autoTagReplaceToggle.checked = autoTaggingConfig.replaceEnabled;
@@ -287,13 +323,15 @@ export function openCustomTagModal(inputElement) {
     });
 
     insertBtn.textContent = autoTagToggle.checked ? '자동 태그 적용' : '태그 삽입';
-    if (!targetInputElement.value) {
+    if (!initialText) {
         fullTextDisplay.setAttribute('data-placeholder', '(비어 있음)');
     } else {
         fullTextDisplay.removeAttribute('data-placeholder');
     }
 
     populateTagTemplates();
+    populateRegexTemplates(); // [추가] 정규식 템플릿 목록 채우기
+    populateKeywordTemplates(); // [추가] 키워드 템플릿 목록 채우기
 
     insertBtn.addEventListener('click', handleInsert);
     undoBtn.addEventListener('click', handleUndo);
@@ -310,6 +348,54 @@ export function openCustomTagModal(inputElement) {
 
     requestAnimationFrame(updateShadows);
     modal.classList.add('is-visible');
+}
+
+/**
+ * [추가] 퀵 태깅 대상 변수들의 값을 구분자와 함께 합칩니다.
+ * @returns {string} 합쳐진 텍스트
+ */
+function getCombinedTextFromQuickTagTargets() {
+    // [수정] 사용자가 구분자를 편집하지 못하도록 contenteditable="false" 속성을 추가합니다.
+    // innerText로 값을 읽을 때 이 태그는 무시되므로, applyQuickTaggingChanges의 split 로직은 그대로 작동합니다.
+    const separator = `\n\n<span contenteditable="false" style="display:block;text-align:center;color:var(--hint-color);user-select:none;">---</span>\n\n`;
+    return quickTaggingTargets
+        .map(varName => escapeHTML(variableConfigs[varName].default)) // [수정] 변수 값에 HTML이 포함될 수 있으므로 이스케이프 처리
+        .join(separator);
+}
+
+/**
+ * [추가] 퀵 태깅 모달에서 변경된 전체 텍스트를 각 변수에 다시 분배하여 적용합니다.
+ * @param {string} combinedText - 커스텀 태그 모달에서 변경된 전체 텍스트
+ */
+function applyQuickTaggingChanges(combinedText) {
+    // [수정] innerText로 읽어온 텍스트에는 span 태그가 없으므로, 구분자를 텍스트 기준으로 변경합니다.
+    // 사용자가 구분자를 직접 입력하더라도, contenteditable=false 때문에 편집이 불가능합니다.
+    const separatorRegex = /\n\n---\n\n/g;
+    const parts = combinedText.split(separatorRegex);
+
+    if (parts.length !== quickTaggingTargets.length) {
+        console.warn('Quick tagging text parts do not match target count. Aborting update.');
+        return;
+    }
+
+    let changed = false;
+    quickTaggingTargets.forEach((varName, index) => {
+        if (variableConfigs[varName].default !== parts[index]) {
+            variableConfigs[varName].default = parts[index];
+            
+            // '변수 설정' UI의 textarea 값도 업데이트
+            const textarea = document.getElementById(sanitizeId(varName) + '_text');
+            if (textarea) {
+                textarea.value = parts[index];
+                textarea.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+            changed = true;
+        }
+    });
+
+    if (changed) {
+        triggerResultGeneration();
+    }
 }
 
 export function setupCustomTagTemplates() {
@@ -347,6 +433,205 @@ export function setupCustomTagTemplates() {
     });
 }
 
+/**
+ * [추가] 퀵 커스텀 태깅 모달의 이벤트 리스너를 설정합니다.
+ */
+export function setupQuickTaggingModal() {
+    const modal = document.getElementById('quickTaggingModal');
+    const openBtn = document.getElementById('quick-tagging-btn');
+    const closeBtn = document.getElementById('quickTaggingModalCloseBtn');
+    const listContainer = document.getElementById('quickTaggingVariableList');
+    const selectAllBtn = document.getElementById('quickTaggingSelectAllBtn');
+    const openCustomModalBtn = document.getElementById('quickTaggingOpenModalBtn');
+
+    openBtn.addEventListener('click', () => {
+        listContainer.innerHTML = '';
+        // [수정] '변수 설정'의 현재 정렬 순서를 가져와 텍스트 변수만 필터링합니다.
+        const sortedVariableNames = Array.from(document.querySelectorAll('#variableFields > .field, #variableFields .variable-group .field'))
+            .map(el => el.id.replace('var-field-', ''))
+            .map(sanitizedId => {
+                // 거꾸로 원래 이름을 찾아야 합니다.
+                return Object.keys(variableConfigs).find(name => `id_${Array.from(name).map(char => char.charCodeAt(0).toString(16)).join('')}` === sanitizedId);
+            })
+            .filter(name => name && variableConfigs[name]?.mode === 'text');
+
+
+        if (sortedVariableNames.length === 0) {
+            listContainer.innerHTML = '<p class="hint">태그를 적용할 텍스트 변수가 없습니다.</p>';
+        } else {
+            sortedVariableNames.forEach(name => {
+                const id = `quick-tag-check-${sanitizeId(name)}`;
+                const item = document.createElement('div');
+                item.className = 'quick-tagging-item';
+                item.dataset.varName = name;
+                item.innerHTML = `
+                    <div class="custom-checkbox">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                    </div>
+                    <div class="label-container">
+                        <label>${escapeHTML(name)}</label>
+                    </div>
+                    <input type="checkbox" id="${id}" value="${name}" class="visually-hidden">
+                `;
+                listContainer.appendChild(item);
+
+                const label = item.querySelector('label');
+                let scrollAnimation;
+
+                item.addEventListener('mouseenter', () => {
+                    if (label.scrollWidth > label.clientWidth) {
+                        const scrollAmount = label.scrollWidth - label.clientWidth;
+                        const duration = scrollAmount * 20; // 1px당 20ms로 속도 약간 조절
+                        // [수정] 키프레임 수정: 끝까지 갔다가(100%) 잠시 멈춘 후 처음으로 돌아가 반복
+                        scrollAnimation = label.animate([
+                            { transform: 'translateX(0)' }, // 시작
+                            { transform: `translateX(-${scrollAmount}px)`, offset: 0.8 }, // 80% 지점까지 스크롤
+                            { transform: `translateX(-${scrollAmount}px)`, offset: 1 } // 100% 지점까지 멈춤
+                        ], {
+                            // [수정] 전체 애니메이션 시간 = 스크롤 시간 + 멈춤 시간
+                            duration: duration + 3000, // 3초 멈춤
+                            delay: 500, // 0.5초 후 시작
+                            iterations: Infinity,
+                            easing: 'ease-in-out'
+                        });
+                    }
+                });
+
+                item.addEventListener('mouseleave', () => {
+                    if (scrollAnimation) scrollAnimation.cancel();
+                });
+
+                item.addEventListener('click', () => {
+                    const checkbox = item.querySelector('input[type="checkbox"]');
+                    checkbox.checked = !checkbox.checked;
+                    item.classList.toggle('is-checked', checkbox.checked);
+                    listContainer.dispatchEvent(new Event('change', { bubbles: true }));
+                });
+            });
+        }
+        openCustomModalBtn.disabled = true;
+        modal.classList.add('is-visible');
+    });
+
+    closeBtn.addEventListener('click', () => modal.classList.remove('is-visible'));
+    modal.addEventListener('click', (e) => { if (e.target === modal) modal.classList.remove('is-visible'); });
+
+    listContainer.addEventListener('change', () => {
+        const selected = listContainer.querySelectorAll('input[type="checkbox"]:checked');
+        openCustomModalBtn.disabled = selected.length === 0;
+    });
+
+    selectAllBtn.addEventListener('click', () => {
+        const checkboxes = listContainer.querySelectorAll('input[type="checkbox"]');
+        const shouldSelectAll = Array.from(checkboxes).some(cb => !cb.checked);
+        
+        checkboxes.forEach(cb => {
+            cb.checked = shouldSelectAll;
+            cb.closest('.quick-tagging-item').classList.toggle('is-checked', shouldSelectAll);
+        });
+
+        openCustomModalBtn.disabled = !shouldSelectAll;
+    });
+
+    openCustomModalBtn.addEventListener('click', () => {
+        const selectedVariables = Array.from(listContainer.querySelectorAll('input[type="checkbox"]:checked'))
+            .map(cb => cb.value);
+        
+        if (selectedVariables.length > 0) {
+            openCustomTagModal(selectedVariables);
+            modal.classList.remove('is-visible');
+        }
+    });
+}
+
+/**
+ * [추가] 저장된 정규식 템플릿으로 select 요소를 채웁니다.
+ */
+function populateRegexTemplates() {
+    regexTemplateSelect.innerHTML = regexTemplates.length === 0 ? '<option value="">저장된 템플릿 없음</option>' : '<option value="">템플릿 선택...</option>';
+    regexTemplates.forEach((tpl, index) => {
+        const option = document.createElement('option');
+        option.value = index;
+        option.textContent = tpl.name;
+        regexTemplateSelect.appendChild(option);
+    });
+    deleteRegexTemplateBtn.disabled = true; // 목록을 다시 채울 때 항상 비활성화
+}
+
+/**
+ * [추가] 정규식 템플릿 저장/삭제 이벤트 리스너를 설정합니다.
+ */
+function setupRegexTemplateControls() {
+    saveRegexTemplateBtn.addEventListener('click', () => {
+        const name = prompt('이 정규식 템플릿의 이름을 입력하세요:');
+        if (!name || !name.trim()) return;
+        regexTemplates.push({ name: name.trim(), pattern: regexPatternInput.value, flags: regexFlagsInput.value });
+        saveState();
+        populateRegexTemplates();
+    });
+
+    regexTemplateSelect.addEventListener('change', (e) => {
+        const selectedTpl = regexTemplates[e.target.value];
+        regexPatternInput.value = selectedTpl ? selectedTpl.pattern : '';
+        regexFlagsInput.value = selectedTpl ? selectedTpl.flags : 'g';
+        deleteRegexTemplateBtn.disabled = !selectedTpl;
+    });
+
+    deleteRegexTemplateBtn.addEventListener('click', () => {
+        const selectedIndex = regexTemplateSelect.value;
+        if (selectedIndex === '' || !regexTemplates[selectedIndex]) return;
+        if (confirm(`'${regexTemplates[selectedIndex].name}' 템플릿을 정말 삭제하시겠습니까?`)) {
+            regexTemplates.splice(selectedIndex, 1);
+            saveState();
+            populateRegexTemplates();
+        }
+    });
+}
+
+/**
+ * [추가] 저장된 키워드 템플릿으로 select 요소를 채웁니다.
+ */
+function populateKeywordTemplates() {
+    keywordTemplateSelect.innerHTML = keywordTemplates.length === 0 ? '<option value="">저장된 템플릿 없음</option>' : '<option value="">템플릿 선택...</option>';
+    keywordTemplates.forEach((tpl, index) => {
+        const option = document.createElement('option');
+        option.value = index;
+        option.textContent = tpl.name;
+        keywordTemplateSelect.appendChild(option);
+    });
+    deleteKeywordTemplateBtn.disabled = true;
+}
+
+/**
+ * [추가] 키워드 템플릿 저장/삭제 이벤트 리스너를 설정합니다.
+ */
+function setupKeywordTemplateControls() {
+    saveKeywordTemplateBtn.addEventListener('click', () => {
+        const name = prompt('이 키워드 템플릿의 이름을 입력하세요:');
+        if (!name || !name.trim()) return;
+        keywordTemplates.push({ name: name.trim(), keywords: keywordsInput.value });
+        saveState();
+        populateKeywordTemplates();
+    });
+
+    keywordTemplateSelect.addEventListener('change', (e) => {
+        const selectedTpl = keywordTemplates[e.target.value];
+        keywordsInput.value = selectedTpl ? selectedTpl.keywords : '';
+        deleteKeywordTemplateBtn.disabled = !selectedTpl;
+        // 키워드 입력 시 설정이 바로 업데이트되도록 input 이벤트 트리거
+        keywordsInput.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+
+    deleteKeywordTemplateBtn.addEventListener('click', () => {
+        const selectedIndex = keywordTemplateSelect.value;
+        if (selectedIndex === '' || !keywordTemplates[selectedIndex]) return;
+        if (confirm(`'${keywordTemplates[selectedIndex].name}' 템플릿을 정말 삭제하시겠습니까?`)) {
+            keywordTemplates.splice(selectedIndex, 1);
+            saveState();
+            populateKeywordTemplates();
+        }
+    });
+}
 /**
  * [추가] 드롭다운 옵션 편집 모달을 열고 관리하는 함수.
  * @param {string} varName - 옵션을 포함하는 변수의 이름.
@@ -506,14 +791,16 @@ export function setupAutoTagSettings() {
         updateConfig();
         updateReplaceUI();
     });
+    setupRegexTemplateControls(); // [추가] 정규식 템플릿 컨트롤 설정
+    setupKeywordTemplateControls(); // [추가] 키워드 템플릿 컨트롤 설정
 
     regexTemplateSelect.addEventListener('change', (e) => {
-        const [pattern, flags] = e.target.value.split('::');
-        if (pattern) {
-            regexPatternInput.value = pattern;
-            regexFlagsInput.value = flags || 'g';
-            updateConfig();
-        }
+        // [수정] 이 이벤트는 더 이상 사용되지 않습니다.
+        // setupRegexTemplateControls 내부의 change 이벤트 핸들러가 이 역할을 대신하며,
+        // 더 이상 불필요하게 autoTaggingConfig를 업데이트하지 않습니다.
+        // const [pattern, flags] = e.target.value.split('::');
+        // ...
+        // updateConfig();
     });
 
     regexPatternInput.addEventListener('input', (e) => {

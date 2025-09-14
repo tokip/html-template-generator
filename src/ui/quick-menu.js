@@ -239,6 +239,10 @@ export function renderQuickMenu() {
                 saveState();
                 triggerResultGeneration();
             });
+            // [추가] 포커스 시 텍스트 전체 선택
+            input.addEventListener('focus', (e) => {
+                e.target.select();
+            });
             inputWrapper.appendChild(input);
         } else { // dropdown
             const select = document.createElement('select');
