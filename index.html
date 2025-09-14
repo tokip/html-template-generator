@@ -303,8 +303,15 @@
                     <!-- JS로 변수 목록 채움 -->
                 </div>
             </div>
-            <div class="modal-footer" style="padding: 16px 20px; justify-content: space-between;">
-                <button id="quickTaggingSelectAllBtn" class="secondary">모두 선택</button>
+            <div class="modal-footer" style="padding: 16px 20px; flex-direction: column; align-items: stretch;">
+                <div class="tag-template-controls" style="margin-bottom: 12px;">
+                    <select id="quickTaggingTemplateSelect" style="flex-grow: 1;"><option value="">저장된 템플릿 없음</option></select>
+                    <button id="saveQuickTaggingTemplateBtn" class="secondary" title="현재 선택을 템플릿으로 저장" data-icon="save"></button>
+                    <button id="deleteQuickTaggingTemplateBtn" class="warning" title="선택한 템플릿 삭제" data-icon="trash-2" disabled></button>
+                </div>
+                <div class="flex" style="justify-content: space-between;">
+                    <button id="quickTaggingSelectAllBtn" class="secondary">모두 선택</button>
+                </div>
                 <button id="quickTaggingOpenModalBtn" disabled>커스텀 태그 모달 열기</button>
             </div>
         </div>

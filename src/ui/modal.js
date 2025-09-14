@@ -1,4 +1,4 @@
-import { autoTaggingConfig, tagTemplates, regexTemplates, keywordTemplates, saveState, variableConfigs, codeBlocks, quickTaggingSelection, setQuickTaggingSelection } from '../state.js';
+import { autoTaggingConfig, tagTemplates, regexTemplates, keywordTemplates, saveState, variableConfigs, codeBlocks, quickTaggingSelection, setQuickTaggingSelection, quickTaggingTemplates, setQuickTaggingTemplates } from '../state.js';
 import { escapeHTML, escapeRegExp, sanitizeId, getDisplayVariableName } from '../utils.js';
 import { populateOptionsFor, textInputHistory } from './variable-fields.js';
 import { triggerResultGeneration } from '../core.js';
@@ -35,6 +35,9 @@ const deleteRegexTemplateBtn = document.getElementById('deleteRegexTemplateBtn')
 const keywordTemplateSelect = document.getElementById('keywordTemplateSelect');
 const saveKeywordTemplateBtn = document.getElementById('saveKeywordTemplateBtn');
 const deleteKeywordTemplateBtn = document.getElementById('deleteKeywordTemplateBtn');
+// [수정] 퀵 태깅 템플릿 UI 요소를 모듈 스코프로 이동
+const quickTaggingTemplateSelect = document.getElementById('quickTaggingTemplateSelect');
+const deleteQuickTaggingTemplateBtn = document.getElementById('deleteQuickTaggingTemplateBtn');
 // [추가] 키워드 대체 UI 요소
 const autoTagReplaceToggle = document.getElementById('autoTagReplaceToggle');
 const autoTagReplaceKeywordInput = document.getElementById('autoTagReplaceKeyword');
@@ -445,6 +448,7 @@ export function setupQuickTaggingModal() {
     const selectAllBtn = document.getElementById('quickTaggingSelectAllBtn');
     const openCustomModalBtn = document.getElementById('quickTaggingOpenModalBtn');
 
+
     // [수정] blockVarNames를 함수 스코프로 이동하여 renderQuickTagItem에서 접근할 수 있도록 합니다.
     let blockVarNames = new Set();
 
@@ -541,7 +545,8 @@ export function setupQuickTaggingModal() {
                 vars.forEach(name => renderQuickTagItem(name, listContainer, duplicateColorMap[name]));
             });
         }
-        openCustomModalBtn.disabled = true;
+        populateQuickTaggingTemplates();
+        listContainer.dispatchEvent(new Event('change', { bubbles: true })); // [수정] 모달 열 때 버튼 상태 갱신
         modal.classList.add('is-visible');
     });
 
@@ -647,6 +652,66 @@ export function setupQuickTaggingModal() {
         if (selectedVariables.length > 0) {
             openCustomTagModal(selectedVariables);
             modal.classList.remove('is-visible');
+        }
+    });
+}
+/**
+ * [추가] 저장된 퀵 태깅 템플릿으로 select 요소를 채웁니다.
+ */
+function populateQuickTaggingTemplates() {
+    quickTaggingTemplateSelect.innerHTML = quickTaggingTemplates.length === 0 ? '<option value="">저장된 템플릿 없음</option>' : '<option value="">템플릿 선택...</option>';
+    quickTaggingTemplates.forEach((tpl, index) => {
+        const option = document.createElement('option');
+        option.value = index;
+        option.textContent = tpl.name;
+        quickTaggingTemplateSelect.appendChild(option);
+    });
+    deleteQuickTaggingTemplateBtn.disabled = true;
+}
+
+/**
+ * [추가] 퀵 태깅 템플릿 저장/삭제/적용 이벤트 리스너를 설정합니다.
+ */
+function setupQuickTaggingTemplateControls() {
+    const listContainer = document.getElementById('quickTaggingVariableList');
+    // [수정] UI 요소 변수를 이 함수 내에서 선언합니다.
+    const templateSelect = quickTaggingTemplateSelect; // 모듈 스코프 변수 사용
+    const saveTemplateBtn = document.getElementById('saveQuickTaggingTemplateBtn');
+    const deleteTemplateBtn = document.getElementById('deleteQuickTaggingTemplateBtn');
+
+    saveTemplateBtn.addEventListener('click', () => {
+        const name = prompt('이 선택 템플릿의 이름을 입력하세요:');
+        if (!name || !name.trim()) return;
+        quickTaggingTemplates.push({ name: name.trim(), selection: quickTaggingSelection });
+        setQuickTaggingTemplates(quickTaggingTemplates);
+        saveState();
+        populateQuickTaggingTemplates();
+    });
+
+    templateSelect.addEventListener('change', (e) => {
+        const selectedTpl = quickTaggingTemplates[e.target.value];
+        deleteTemplateBtn.disabled = !selectedTpl;
+        if (selectedTpl) {
+            setQuickTaggingSelection(selectedTpl.selection);
+            // UI 업데이트
+            listContainer.querySelectorAll('.quick-tagging-item').forEach(item => {
+                const checkbox = item.querySelector('input[type="checkbox"]');
+                const isChecked = selectedTpl.selection.includes(checkbox.value);
+                checkbox.checked = isChecked;
+                item.classList.toggle('is-checked', isChecked);
+            });
+            listContainer.dispatchEvent(new Event('change', { bubbles: true })); // 상태 저장 및 버튼 활성화
+        }
+    });
+
+    deleteTemplateBtn.addEventListener('click', () => {
+        const selectedIndex = templateSelect.value;
+        if (selectedIndex === '' || !quickTaggingTemplates[selectedIndex]) return;
+        if (confirm(`'${quickTaggingTemplates[selectedIndex].name}' 템플릿을 정말 삭제하시겠습니까?`)) {
+            quickTaggingTemplates.splice(selectedIndex, 1);
+            setQuickTaggingTemplates(quickTaggingTemplates);
+            saveState();
+            populateQuickTaggingTemplates();
         }
     });
 }
@@ -898,6 +963,7 @@ export function setupAutoTagSettings() {
         updateConfig();
         updateReplaceUI();
     });
+    setupQuickTaggingTemplateControls(); // [추가] 퀵 태깅 템플릿 컨트롤 설정
     setupRegexTemplateControls(); // [추가] 정규식 템플릿 컨트롤 설정
     setupKeywordTemplateControls(); // [추가] 키워드 템플릿 컨트롤 설정
 

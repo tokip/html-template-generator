@@ -14,6 +14,7 @@ export let variableConfigs = {};
 export let codeBlocks = {};
 export let regexTemplates = []; // [추가] 정규식 템플릿을 저장할 배열
 export let keywordTemplates = []; // [추가] 키워드 템플릿을 저장할 배열
+export let quickTaggingTemplates = []; // [추가] 퀵 커스텀 태깅 템플릿 저장
 export let quickTaggingSelection = []; // [추가] 퀵 커스텀 태깅 선택 항목 저장
 export let syncGroups = {};
 export let tagTemplates = [];
@@ -41,6 +42,7 @@ export function setCodeBlocks(newBlocks) { codeBlocks = newBlocks; }
 export function setSyncGroups(newGroups) { syncGroups = newGroups; }
 export function setRegexTemplates(newTemplates) { regexTemplates = newTemplates; } // [추가]
 export function setKeywordTemplates(newTemplates) { keywordTemplates = newTemplates; } // [추가]
+export function setQuickTaggingTemplates(newTemplates) { quickTaggingTemplates = newTemplates; } // [추가]
 export function setQuickTaggingSelection(newSelection) { quickTaggingSelection = newSelection; } // [추가]
 export function setTagTemplates(newTemplates) { tagTemplates = newTemplates; }
 export function setAutoTaggingConfig(newConfig) { autoTaggingConfig = newConfig; }
@@ -61,6 +63,7 @@ export function saveState() {
             configs: variableConfigs,
             keywordTemplates: keywordTemplates, // [추가]
             regexTemplates: regexTemplates, // [추가]
+            quickTaggingTemplates: quickTaggingTemplates, // [추가]
             quickTaggingSelection: quickTaggingSelection, // [추가]
             tagTemplates: tagTemplates,
             autoTaggingConfig: autoTaggingConfig,
@@ -90,6 +93,7 @@ export function loadState() {
             setCodeBlocks(state.codeBlocks || {});
             setKeywordTemplates(state.keywordTemplates || []); // [추가]
             setRegexTemplates(state.regexTemplates || []); // [추가]
+            setQuickTaggingTemplates(state.quickTaggingTemplates || []); // [추가]
             setQuickTaggingSelection(state.quickTaggingSelection || []); // [추가]
             document.getElementById('realtimeToggle').checked = state.realtime !== false;
 
@@ -130,6 +134,7 @@ export function exportToJson() {
         configs: variableConfigs,
         keywordTemplates: keywordTemplates, // [추가]
         regexTemplates: regexTemplates, // [추가]
+        quickTaggingTemplates: quickTaggingTemplates, // [추가]
         quickTaggingSelection: quickTaggingSelection, // [추가]
         tagTemplates: tagTemplates,
         regexHistory: autoTaggingConfig.history,
@@ -170,6 +175,7 @@ export function importFromJson(event) {
                 setCodeBlocks(state.codeBlocks || {});
                 setKeywordTemplates(state.keywordTemplates || []); // [추가]
                 setRegexTemplates(state.regexTemplates || []); // [추가]
+                setQuickTaggingTemplates(state.quickTaggingTemplates || []); // [추가]
                 setQuickTaggingSelection(state.quickTaggingSelection || []); // [추가]
                 setVariableConfigs(state.configs);
                 setTagTemplates(state.tagTemplates || []);
